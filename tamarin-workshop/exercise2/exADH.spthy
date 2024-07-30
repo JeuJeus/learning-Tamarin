@@ -27,12 +27,14 @@ rule A_Init:
 
 rule B_Init:
   let 
-    sharedKey = publicKeyA^publicKeyB
+    sharedKey = publicKeyA^~longtermkeyB
     ackMessage = senc('ack',sharedKey) 
   in
   [ 
-    In(<'InitA',$A,$B,publicKeyA>),
+    In(<'Init_A',$A,$B,publicKeyA>),
+    !PublicKey($A,publicKeyA),
     !PublicKey($B, publicKeyB),
+    !LongTermKey($B, ~longtermkeyB)
   ]
   --[ 
     ReachBInit(),
@@ -44,22 +46,24 @@ rule B_Init:
 
 rule A_SendMsg:
   let 
-    sharedKey = publicKeyA^publicKeyB 
-    achMessage = senc('ack',sharedKey)
+    sharedKey = publicKeyB^~longtermkeyA
+    ackMessage = senc('ack',sharedKey)
+    encryptedMessage = senc(~msg,sharedKey)
   in
   [ 
-    In(<'Ack_B',achMessage,$B,$A,publicKeyB>), 
+    In(<'Ack_B',ackMessage,$B,$A,publicKeyB>), 
     State_A($A,$B),
-    !PublicKey($A,publicKeyA),
+    !PublicKey($B, publicKeyB),
+    !LongTermKey($A, ~longtermkeyA),
     Fr(~msg)
   ]
   --[ 
     ReachASendMsg(),
     MessageWasSent(~msg),
-    InitiatorKey(sharedKey)
+    InitiatorKey(sharedKey),
     ]->
   [ 
-    Out(senc(~msg,sharedKey))
+    Out(encryptedMessage)
   ]
 
 // This restriction allows you to use the Eq action fact in rules to constrain
