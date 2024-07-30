@@ -20,6 +20,17 @@ rule SendMsg:
     Out(senc(~msg,k))
   ]
 
+rule Leak:
+  [
+    !LongTermKey($A,k)
+  ]
+  --[ 
+    LtkReveal(k) 
+  ]->
+  [
+    Out(k)
+  ]
+
 lemma Secrecy:
   "All p m #t. MessageWasSentBy(p, m) @ #t ==> not Ex #x. K(m) @ #x"
 
