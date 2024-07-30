@@ -18,5 +18,55 @@ rule SecureChannelReceive:
 /**
  * ...put your model here...
  */
+rule ClientInitiateFlow:
+  let 
+    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
+  in
+  [
+    Fr(~clientId),
+    Fr(~scope),
+    Fr(~state),
+    Fr(~redirectURI),
+  ]
+  --[
+    ReachClientInitiateFlow()
+  ]->
+  [
+    OutSecure('Client','UserAgent',includedContent)
+  ]
+
+rule UserAgentForwardInitiateRequest:
+  let 
+    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
+  in
+  [
+    InSecure('Client','UserAgent',includedContent)
+  ]
+  --[ReachUserAgentForwardInitiateRequest()
+  ]->
+  [
+    OutSecure('UserAgent','AuthorizationServer',includedContent)
+  ]
+
+rule AuthenticationServerAuthorizeEndUser:
+  let 
+    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
+  in
+  [
+    InSecure('UserAgent','AuthorizationServer',includedContent)
+  ]
+  --[
+    ReachAuthenticationServerAuthorization()
+  ]->
+  [
+
+  ]
+
+lemma Executability:
+  exists-trace
+  "Ex #t1 #t2 #t3. 
+    ReachClientInitiateFlow() @ #t1 & 
+    ReachUserAgentForwardInitiateRequest() @ #t2 &
+    ReachAuthenticationServerAuthorization() @ #t3"
 
 end
