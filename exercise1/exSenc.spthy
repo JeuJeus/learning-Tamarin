@@ -1,0 +1,20 @@
+theory ExerciseSymmetricEncryption
+begin
+
+builtins: symmetric-encryption
+
+rule KeyGen:
+  [ Fr(~k) ]
+  -->
+  [ !LongTermKey($A, ~k) ]
+
+rule SendMsg:
+  []
+  --[ // MessageWasSentBy($A, ~msg)
+    ]->
+  []
+
+lemma Secrecy:
+  "All p m #t. MessageWasSentBy(p, m) @ #t ==> not Ex #x. K(m) @ #x"
+
+end
