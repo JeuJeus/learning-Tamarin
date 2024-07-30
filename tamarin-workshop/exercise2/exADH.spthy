@@ -4,10 +4,16 @@ begin
 builtins: symmetric-encryption, diffie-hellman
 
 rule Ltk:
-  // let publicComponent = _^_ in
-  []
+  let publicComponent = 'g'^~longtermkey in
+  [
+    Fr(~longtermkey)
+  ]
   -->
-  []
+  [ 
+    !LongTermKey($X, ~longtermkey),
+    !PublicKey($X, publicComponent),
+    Out(publicComponent)
+  ]
 
 rule A_Init:
   []
