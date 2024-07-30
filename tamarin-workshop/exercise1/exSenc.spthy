@@ -9,10 +9,16 @@ rule KeyGen:
   [ !LongTermKey($A, ~k) ]
 
 rule SendMsg:
-  []
-  --[ // MessageWasSentBy($A, ~msg)
+  [ 
+    !LongTermKey($A, k),
+    Fr(~msg)
+  ]
+  --[ 
+     MessageWasSentBy($A, ~msg)
     ]->
-  []
+  [
+    Out(senc(~msg,k))
+  ]
 
 lemma Secrecy:
   "All p m #t. MessageWasSentBy(p, m) @ #t ==> not Ex #x. K(m) @ #x"
