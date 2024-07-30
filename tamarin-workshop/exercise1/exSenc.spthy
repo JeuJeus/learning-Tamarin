@@ -25,7 +25,8 @@ rule Leak:
     !LongTermKey($A,k)
   ]
   --[ 
-    LtkReveal(k) 
+    LtkReveal(k),
+    ParticipantWasCompromised($A)
   ]->
   [
     Out(k)
@@ -33,5 +34,10 @@ rule Leak:
 
 lemma Secrecy:
   "All p m #t. MessageWasSentBy(p, m) @ #t ==> not Ex #x. K(m) @ #x"
+
+lemma SecrecyWeakened:
+  "All p m #i . MessageWasSentBy(p,m) @ i ==> 
+    (not Ex #j . K(m) @ #j) | 
+    (Ex #k . ParticipantWasCompromised(p) @ #k)"
 
 end
