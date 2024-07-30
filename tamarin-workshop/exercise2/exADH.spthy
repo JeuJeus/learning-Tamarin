@@ -16,32 +16,50 @@ rule Ltk:
   ]
 
 rule A_Init:
-  []
+  [
+    !PublicKey($A,publicKeyA)
+  ]
   --[ ReachAInit() ]->
-  [ // Out(...)
-  // , St_A(...)
+  [ 
+    Out(<'Init_A',$A,$B,publicKeyA>), 
+    State_A($A,$B)
   ]
 
 rule B_Init:
-  // let sharedKey = _^_ in
-  [ // In(...)
+  let 
+    sharedKey = publicKeyA^publicKeyB
+    ackMessage = senc('ack',sharedKey) 
+  in
+  [ 
+    In(<'InitA',$A,$B,publicKeyA>),
+    !PublicKey($B, publicKeyB),
   ]
-  --[ ReachBInit()
-    // , ResponderKey(_)
+  --[ 
+    ReachBInit(),
+    ResponderKey(sharedKey)
     ]->
-  [ // Out(...)
+  [ 
+    Out(<'Ack_B',ackMessage,$B,$A,publicKeyB>)
   ]
 
 rule A_SendMsg:
-  // let sharedKey = _^_ in
-  [ // In(...)
-  // , St_A(...)
+  let 
+    sharedKey = publicKeyA^publicKeyB 
+    achMessage = senc('ack',sharedKey)
+  in
+  [ 
+    In(<'Ack_B',achMessage,$B,$A,publicKeyB>), 
+    State_A($A,$B),
+    !PublicKey($A,publicKeyA),
+    Fr(~msg)
   ]
-  --[ ReachASendMsg()
-    // MessageWasSent(_)
-    // , InitiatorKey(_)
+  --[ 
+    ReachASendMsg(),
+    MessageWasSent(~msg),
+    InitiatorKey(sharedKey)
     ]->
-  [ // Out(...)
+  [ 
+    Out(senc(~msg,sharedKey))
   ]
 
 // This restriction allows you to use the Eq action fact in rules to constrain
