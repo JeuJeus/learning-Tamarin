@@ -1,7 +1,7 @@
 theory OAuthInsecureChannel
 begin
 
-/** Secure channel model (begin) */
+/* SECURE CHANNELS */
 
 rule SecureChannelSend:
   [ OutSecure($From, $To, m) ]
@@ -13,33 +13,58 @@ rule SecureChannelReceive:
   -->
   [ InSecure($From, $To, m) ]
 
-/** Secure channel model (end) */
-rule InsecureChannelSend:
-  let
-    insecureMessage = <$From, $To, message>
-  in 
-    [ OutInsecure($From, $To, message) ]
-    -->
-    [ Out(insecureMessage) ]
-
-rule InsecureChannelReceive:
-  let
-    insecureMessage = <$From, $To, message>
-  in 
-    [ In(insecureMessage) ]
-    -->
-    [ InInsecure($From, $To, message) ]
-
-rule LeakSharedSecret:
-  [ !Registration($Client, $Server, ~sharedSecret, $RedirectURI) ]
-  --[ LeakOfSecret($Client, $Server, ~sharedSecret) ]->
+/* COMPROMISE */
+rule CompromisedSend:
   [ 
-    Out(~sharedSecret)
+    OutSecure($From, $To, message),
+    !Compromised($From) ]
+  -->
+  [ 
+    !Sec($From,$To,message),
+    Out(message)
+   ]
+
+rule CompromisedReceive:
+  [ 
+    !Sec($From, $To, message),
+    !Compromised($From)
+  ]
+  -->
+  [ 
+    InInsecure($From, $To, message),
+    Out(message) 
   ]
 
-/** 2
- * ...put your model here...
- */
+rule MaliciousSend:
+  [ 
+    !Compromised($From),
+    In(message)
+   ]
+  -->
+  [ 
+    !Sec($From,$To, message)
+   ]
+
+rule MaliciousReceive:
+   [
+    !Compromised($To),
+    In(message)
+   ]
+   -->
+   [
+    InSecure($From, $To, message)
+   ]
+
+rule CompromiseOfEndpoint:
+  []
+  --[ 
+    CompromiseHappened(),
+    WasCompromised($Client)
+   ]->
+  [ !Compromised($Endpoint) ]
+
+/* SETUP OF ENDPOINTS */
+
 rule AuthorizationServer:
   [] --> [ !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint)]
 
@@ -54,6 +79,8 @@ rule RegisterClientAtAuthorizationServer:
   ]
   -->
   [ !Registration($Client, $Server, ~sharedSecret, $RedirectURI)]
+
+/* CORE PROTOCOL */
 
 rule AuthorizationRequest:
 let
@@ -127,25 +154,30 @@ in
 --[
   AuthenticMessage($Client,incomingMessage),
   SuccessfullyIssuedToken($Client, $Server, $Scope, ~token),
-  TokenIsSecret(~token)
+  TokenIsAssumedSecret(~token),
+  TokenEndpointIsAssumedUncompromised($TokenEndpoint)
 ]-> 
 [
   OutSecure($TokenEndpoint, $Client, outgoingMessage)
 ]
+
+/* LEMMAS */
 
 lemma Executability:
   exists-trace
   "Ex client server scope token #i #j . 
     InitiateAuthorizationFlow(client,server,scope)@i &
     SuccessfullyIssuedToken(client,server,scope,token)@j &
-    not(Ex sharedSecret #k . 
-      LeakOfSecret(client,server,sharedSecret)@k)"
+    (not (Ex #k . CompromiseHappened()@k))"
 
 lemma SecrecyOfToken:
   "All token #i .
-    TokenIsSecret(token)@i 
+    TokenIsAssumedSecret(token)@i 
       ==> 
-        (not Ex #j . K(token)@j)"
+        (not Ex #j . K(token)@j) |
+        (Ex tokenEndpoint #k #l . 
+          TokenEndpointIsAssumedUncompromised(tokenEndpoint)@k & 
+          WasCompromised(tokenEndpoint)@l)"
 
 lemma AuthenticMessages:
   "All sender message #j. 
