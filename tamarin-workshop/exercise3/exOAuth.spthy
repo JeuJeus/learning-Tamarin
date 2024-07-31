@@ -43,7 +43,8 @@ in
     Fr(~state)
   ] 
   --[
-    InitiateAuthorizationFlow($Client, $Server, $Scope)
+    InitiateAuthorizationFlow($Client, $Server, $Scope),
+    SendMessage($Client, message)
   ]-> 
   [
     OutSecure($Client, $AuthenticationEndpoint, message),
@@ -62,6 +63,8 @@ in
     Fr(~authorizationCode)
   ] 
   --[
+    AuthenticMessage($Client, incomingMessage),
+    SendMessage($AuthenticationEndpoint, outgoingMessage)
   ]-> 
   [
     OutSecure($AuthenticationEndpoint, $RedirectURI, outgoingMessage),
@@ -80,6 +83,8 @@ in
   InSecure($AuthenticationEndpoint, $RedirectURI, incomingMessage)
 ] 
 --[
+  AuthenticMessage($AuthenticationEndpoint,incomingMessage),
+  SendMessage($Client,outgoingMessage)
 ]-> 
 [
   OutSecure($Client, $TokenEndpoint, outgoingMessage)
@@ -98,7 +103,9 @@ in
   Fr(~token)
 ] 
 --[
-  SuccessfullyIssuedToken($Client, $Server, $Scope, ~token)
+  AuthenticMessage($Client,incomingMessage),
+  SuccessfullyIssuedToken($Client, $Server, $Scope, ~token),
+  TokenIsSecret(~token)
 ]-> 
 [
   OutSecure($TokenEndpoint, $Client, outgoingMessage)
@@ -110,5 +117,23 @@ lemma Executability:
   "Ex client server scope token #i #j . 
     InitiateAuthorizationFlow(client,server,scope)@i &
     SuccessfullyIssuedToken(client,server,scope,token)@j"
+
+lemma SecrecyOfToken:
+  "All token #i .
+    TokenIsSecret(token)@i ==> (not Ex #j . K(token)@j)"
+
+lemma AuthenticMessages:
+  "All sender message #j. 
+    AuthenticMessage(sender,message)@j 
+      ==> 
+        Ex #i. SendMessage(sender,message)@i & i<j"
+
+lemma TokenAgreement:
+  "All client server scope token #j .
+    SuccessfullyIssuedToken(client,server,scope,token)@j
+      ==>
+        Ex #i . 
+            InitiateAuthorizationFlow(client,server,scope)@i & 
+            i<j"
 
 end
