@@ -53,8 +53,8 @@ in
 
 rule AuthorizationResponse:
 let
-    incomingMessage = <'authorization_request', $Client, $Scope, ~state, $RedirectURI>
-    outgoingMessage = <'authorization_response', ~state, ~authorizationCode>
+    incomingMessage = <'authorization_request', $Client, $Scope, state, $RedirectURI>
+    outgoingMessage = <'authorization_response', state, ~authorizationCode>
 in
   [
     !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
@@ -73,8 +73,8 @@ in
 
 rule AccessTokenRequest:
 let
-  incomingMessage = <'authorization_response', ~state, ~authorizationCode>
-  outgoingMessage = <'token_request',~authorizationCode, $RedirectURI>
+  incomingMessage = <'authorization_response', ~state, authorizationCode>
+  outgoingMessage = <'token_request',$Client, authorizationCode, ~sharedSecret>
 in 
 [
   !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
@@ -92,7 +92,7 @@ in
 
 rule AccessTokenResponse:
 let
-  incomingMessage = <'token_request', ~authorizationCode, $RedirectURI>
+  incomingMessage = <'token_request',$Client, ~authorizationCode, ~sharedSecret>
   outgoingMessage = <'token_response', ~token>
 in
 [
