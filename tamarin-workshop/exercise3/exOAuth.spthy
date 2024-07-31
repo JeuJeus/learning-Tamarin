@@ -18,55 +18,97 @@ rule SecureChannelReceive:
 /**
  * ...put your model here...
  */
-rule ClientInitiateFlow:
-  let 
-    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
-  in
-  [
-    Fr(~clientId),
-    Fr(~scope),
-    Fr(~state),
-    Fr(~redirectURI),
+rule AuthorizationServer:
+  [] --> [ !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint)]
+
+rule Client:
+  [] --> [ !Client($Client)]
+
+rule RegisterClientAtAuthorizationServer:
+  [ 
+    !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
+    !Client($Client),
+    Fr(~sharedSecret)
   ]
+  -->
+  [ !Registration($Client, $Server, ~sharedSecret, $RedirectURI)]
+
+rule AuthorizationRequest:
+let
+  message = <'authorization_request', $Client, $Scope, ~state, $RedirectURI>
+in
+  [
+    !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
+    !Registration($Client, $Server, ~sharedSecret, $RedirectURI),
+    Fr(~state)
+  ] 
   --[
-    ReachClientInitiateFlow()
-  ]->
+    InitiateAuthorizationFlow($Client, $Server, $Scope)
+  ]-> 
   [
-    OutSecure('Client','UserAgent',includedContent)
+    OutSecure($Client, $AuthenticationEndpoint, message),
+    ClientState_AtAuthorizationRequest($Client, $Server, $RedirectURI, ~state)
   ]
 
-rule UserAgentForwardInitiateRequest:
-  let 
-    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
-  in
+rule AuthorizationResponse:
+let
+    incomingMessage = <'authorization_request', $Client, $Scope, ~state, $RedirectURI>
+    outgoingMessage = <'authorization_response', ~state, ~authorizationCode>
+in
   [
-    InSecure('Client','UserAgent',includedContent)
-  ]
-  --[ReachUserAgentForwardInitiateRequest()
-  ]->
-  [
-    OutSecure('UserAgent','AuthorizationServer',includedContent)
-  ]
-
-rule AuthenticationServerAuthorizeEndUser:
-  let 
-    includedContent = <~clientId, ~scope, ~state, ~redirectURI>
-  in
-  [
-    InSecure('UserAgent','AuthorizationServer',includedContent)
-  ]
+    !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
+    !Registration($Client, $Server, ~sharedSecret, $RedirectURI),
+    InSecure($Client, $AuthenticationEndpoint, incomingMessage),
+    Fr(~authorizationCode)
+  ] 
   --[
-    ReachAuthenticationServerAuthorization()
-  ]->
+  ]-> 
   [
-
+    OutSecure($AuthenticationEndpoint, $RedirectURI, outgoingMessage),
+    AuthorizationServerState_AtAuthorizationResponse($Server, $Client, $RedirectURI, $Scope, ~authorizationCode)
   ]
+
+rule AccessTokenRequest:
+let
+  incomingMessage = <'authorization_response', ~state, ~authorizationCode>
+  outgoingMessage = <'token_request',~authorizationCode, $RedirectURI>
+in 
+[
+  !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
+  !Registration($Client, $Server, ~sharedSecret, $RedirectURI),
+  ClientState_AtAuthorizationRequest($Client, $Server, $RedirectURI, ~state),
+  InSecure($AuthenticationEndpoint, $RedirectURI, incomingMessage)
+] 
+--[
+]-> 
+[
+  OutSecure($Client, $TokenEndpoint, outgoingMessage)
+]
+
+rule AccessTokenResponse:
+let
+  incomingMessage = <'token_request', ~authorizationCode, $RedirectURI>
+  outgoingMessage = <'token_response', ~token>
+in
+[
+  !AuthorizationServer($Server, $AuthenticationEndpoint, $TokenEndpoint),
+  !Registration($Client, $Server, ~sharedSecret, $RedirectURI),
+  AuthorizationServerState_AtAuthorizationResponse($Server, $Client, $RedirectURI, $Scope, ~authorizationCode),
+  InSecure($Client, $TokenEndpoint, incomingMessage),
+  Fr(~token)
+] 
+--[
+  SuccessfullyIssuedToken($Client, $Server, $Scope, ~token)
+]-> 
+[
+  OutSecure($TokenEndpoint, $Client, outgoingMessage)
+]
+
 
 lemma Executability:
   exists-trace
-  "Ex #t1 #t2 #t3. 
-    ReachClientInitiateFlow() @ #t1 & 
-    ReachUserAgentForwardInitiateRequest() @ #t2 &
-    ReachAuthenticationServerAuthorization() @ #t3"
+  "Ex client server scope token #i #j . 
+    InitiateAuthorizationFlow(client,server,scope)@i &
+    SuccessfullyIssuedToken(client,server,scope,token)@j"
 
 end
