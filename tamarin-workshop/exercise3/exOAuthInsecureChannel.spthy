@@ -1,4 +1,4 @@
-theory OAuth
+theory OAuthInsecureChannel
 begin
 
 /** Secure channel model (begin) */
@@ -14,8 +14,30 @@ rule SecureChannelReceive:
   [ InSecure($From, $To, m) ]
 
 /** Secure channel model (end) */
+rule InsecureChannelSend:
+  let
+    insecureMessage = <$From, $To, message>
+  in 
+    [ OutInsecure($From, $To, message) ]
+    -->
+    [ Out(insecureMessage) ]
 
-/**
+rule InsecureChannelReceive:
+  let
+    insecureMessage = <$From, $To, message>
+  in 
+    [ In(insecureMessage) ]
+    -->
+    [ InInsecure($From, $To, message) ]
+
+rule LeakSharedSecret:
+  [ !Registration($Client, $Server, ~sharedSecret, $RedirectURI) ]
+  --[ LeakOfSecret($Client, $Server, ~sharedSecret) ]->
+  [ 
+    Out(~sharedSecret)
+  ]
+
+/** 2
  * ...put your model here...
  */
 rule AuthorizationServer:
@@ -111,22 +133,27 @@ in
   OutSecure($TokenEndpoint, $Client, outgoingMessage)
 ]
 
-
 lemma Executability:
   exists-trace
   "Ex client server scope token #i #j . 
     InitiateAuthorizationFlow(client,server,scope)@i &
-    SuccessfullyIssuedToken(client,server,scope,token)@j"
+    SuccessfullyIssuedToken(client,server,scope,token)@j &
+    not(Ex sharedSecret #k . 
+      LeakOfSecret(client,server,sharedSecret)@k)"
 
 lemma SecrecyOfToken:
   "All token #i .
-    TokenIsSecret(token)@i ==> (not Ex #j . K(token)@j)"
+    TokenIsSecret(token)@i 
+      ==> 
+        (not Ex #j . K(token)@j)"
 
 lemma AuthenticMessages:
   "All sender message #j. 
     AuthenticMessage(sender,message)@j 
       ==> 
-        Ex #i. SendMessage(sender,message)@i & i<j"
+        Ex #i. 
+          SendMessage(sender,message)@i & 
+          i<j"
 
 lemma TokenAgreement:
   "All client server scope token #j .
