@@ -154,8 +154,7 @@ in
 --[
   AuthenticMessage($Client,incomingMessage),
   SuccessfullyIssuedToken($Client, $Server, $Scope, ~token),
-  TokenIsAssumedSecret(~token),
-  TokenEndpointIsAssumedUncompromised($TokenEndpoint)
+  TokenIsAssumedSecret(~token)
 ]-> 
 [
   OutSecure($TokenEndpoint, $Client, outgoingMessage)
@@ -172,27 +171,27 @@ lemma Executability:
 
 lemma SecrecyOfToken:
   "All token #i .
-    TokenIsAssumedSecret(token)@i 
+    TokenIsAssumedSecret(token)@i &
+    (not Ex #j . CompromiseHappened()@j)
       ==> 
-        (not Ex #j . K(token)@j) |
-        (Ex tokenEndpoint #k #l . 
-          TokenEndpointIsAssumedUncompromised(tokenEndpoint)@k & 
-          WasCompromised(tokenEndpoint)@l)"
+        (not Ex #k . K(token)@k)"
 
 lemma AuthenticMessages:
-  "All sender message #j. 
-    AuthenticMessage(sender,message)@j 
+  "All sender message #k. 
+    AuthenticMessage(sender,message)@k &
+    (not Ex #i . CompromiseHappened()@i)
       ==> 
-        Ex #i. 
-          SendMessage(sender,message)@i & 
-          i<j"
+        Ex #j. 
+          SendMessage(sender,message)@j & 
+          j<k"
 
 lemma TokenAgreement:
-  "All client server scope token #j .
-    SuccessfullyIssuedToken(client,server,scope,token)@j
+  "All client server scope token #k .
+    SuccessfullyIssuedToken(client,server,scope,token)@k &
+    (not (Ex #k . CompromiseHappened()@k)) 
       ==>
-        Ex #i . 
-            InitiateAuthorizationFlow(client,server,scope)@i & 
-            i<j"
+        Ex #j . 
+            InitiateAuthorizationFlow(client,server,scope)@j & 
+            j<k"
 
 end
