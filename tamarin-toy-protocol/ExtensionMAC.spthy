@@ -3,167 +3,155 @@
  *  Model Name: ExtensionMAC.spthy
  *  Status: DEVELOPMENTAL
  *
- *  Comments:
+ *  Comments: 
  */
 
- theory ExtensionMAC
- begin
+theory ExtensionMAC
+begin
 
- builtins: signing
- 
- functions: keyDerivationFunction/3
- 
- rule RegisterAgent:
-     [
+builtins: signing
+
+functions: keyDerivationFunction/3
+
+rule RegisterAgent:
+    [ ]-->[ !Agent($X) ]
+
+rule ExternallyPresharedMasterKey:
+    [ 
+        !Agent($A),
+        !Agent($B),
         Fr(~preSharedMasterKey)
      ]
-     -->
-     [ !Agent($X) ]
- 
- rule ExternallyPresharedMasterKey:
-     [ 
-        !Agent($A),
-        !Agent($B),
-        Fr(~preSharedMasterKey)
-      ]
-     -->
-     [ 
+    --[  ]->
+    [ 
         !PreSharedMasterKey($A, $B, ~preSharedMasterKey)
-      ]
+     ]
 
-rule LeakOfPresharedMasterKey:
-      [
-         !PreSharedMasterKey($A, $B, preSharedMasterKey)
-      ]
-      --[
-         LeakedPresharedMasterKey($A, $B)
-      ]->
-      [
-         Out(preSharedMasterKey)
-      ]
- 
- rule A_ComputeAndSendNonce:
-     let
-        messageToB = <$A, ~nonceFromA>
-     in
-     [ 
-        !Agent($A),
+rule A_ComputeAndSendNonce:
+    let
+        signatureOverNonceFromA = sign(~nonceFromA, preSharedMasterKey)
+        messageToB = <$A, ~nonceFromA, signatureOverNonceFromA>
+    in
+    [ 
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
         Fr(~nonceFromA)
-      ]
-     --[ StartedSharedKeyProcess($A, $B) ]->
-     [ 
+     ]
+    --[ StartedSharedKeyProcess($A, $B) ]->
+    [ 
         Out(messageToB),
         !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
-      ]
- 
- rule B_ReceiveNonceComputOwnAndSend:
-     let
-        messageFromA = <$A, nonceFromA>
-        messageToA = <$B, ~nonceFromB>  
-     in
-     [ 
+     ]
+
+rule B_ReceiveNonceComputOwnAndSend:
+    let
+        messageFromA = <$A, nonceFromA, nonceFromASignature>
+        signatureOverNonceFromB = sign(~nonceFromB, preSharedMasterKey)
+        messageToA = <$B, ~nonceFromB, signatureOverNonceFromB>  
+    in
+    [ 
         In(messageFromA),
-        !Agent($B),
-        Fr(~nonceFromB) 
-    ]
-     -->
-     [ 
-         Out(messageToA),
-         !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
-      ]
- 
- rule A_RecieveNonceInstallSessionKey:
-     let
-        messageFromB = <$B, nonceFromB>    
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
+        Fr(~nonceFromB) ]
+    --[ 
+        Eq(verify(nonceFromASignature,nonceFromA,pk(preSharedMasterKey)), true)
+     ]->
+    [ 
+        Out(messageToA),
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
+     ]
+
+rule A_RecieveNonceInstallSessionKey:
+    let
+        messageFromB = <$B, nonceFromB, nonceFromBSignature>    
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
-     in
-     [ 
+    in
+    [ 
         !State_A_AfterSendingNonce($A, $B, nonceFromA),
         !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromB) 
-     ]
-     -->
-     [ 
+    ]
+    --[ 
+        Eq(verify(nonceFromBSignature,nonceFromB,pk(preSharedMasterKey)), true)
+     ]->
+    [ 
         !State_A_AfterKeyDerivation($A, $B, sharedKey)
-      ]
- 
- rule A_SendACK: 
-     let
+     ]
+
+rule A_SendACK: 
+    let
         ackMesage = 'ACK' 
         messageToB = <$A, ackMesage, sign(ackMesage, sharedKey)>
-     in
-     [ 
-        !State_A_AfterKeyDerivation($A, $B, sharedKey)
-     ]
-     --[ 
+    in
+    [ 
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
+        !State_A_AfterKeyDerivation($A, $B, sharedKey) 
+    ]
+    --[ 
         Done($A),
         SharedKeyGeneratedByA($A, $B, sharedKey)
-      ]->
-     [ 
+     ]->
+    [ 
         Out(messageToB),
         !Status_A($A,'DONE') 
-     ]
- 
- rule B_ReceiveACK:
-     let
+    ]
+
+rule B_ReceiveACK:
+    let
         ackMesage = 'ACK'      
         messageFromA = <$A, ackMesage, ackMesageSignature>
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
-     in
-     [ 
+    in
+    [ 
         !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
         !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromA) 
-     ]
-     --[ 
+    ]
+    --[ 
         Eq(verify(ackMesageSignature,ackMesage,pk(sharedKey)), true),
         Done($B),
         SharedKeyGeneratedByB($A, $B, sharedKey)
-     ]->
-     [ 
+    ]->
+    [ 
         !State_B_AfterACK($B, $A, sharedKey),
         !Status_B($B,'DONE') 
-     ]
- 
- lemma Executable:
-     exists-trace
-     "All A B #i .
-         StartedSharedKeyProcess(A,B)@i 
-             ==>
-                 (Ex #j #k .
-                     Done(A)@j &
-                     Done(B)@k &
-                     i<j & j<k)
-     "
-     
- lemma SharedKeySecrecyAfterBDone:
-     "All A B sharedKey #i #j.
-         Done(B)@i &
-         SharedKeyGeneratedByB(A,B,sharedKey)@j
-             ==> 
-                 (not (Ex #x . K(sharedKey)@x))
-     "
- 
- lemma SharedKeySecrecyAfterADone:
-     "All A B sharedKey #i #j.
-         Done(A)@i &
-         SharedKeyGeneratedByA(A,B,sharedKey)@j
-             ==> 
-                 (not (Ex #x . K(sharedKey)@x))
-     "
- 
- lemma BCanNotFinishIfADidNot:
-     "
-     All B A sharedKey #j .
-         SharedKeyGeneratedByB(A,B,sharedKey)@j
-             ==> 
-             (Ex #i . 
-                 SharedKeyGeneratedByA(A,B,sharedKey)@i &
-                 i < j
-             ) |
-             (Ex #x .
-               LeakedPresharedMasterKey(A, B)@x)
-     "
- 
- end
- 
+    ]
+
+lemma Executable:
+    exists-trace
+    "All A B #i .
+        StartedSharedKeyProcess(A,B)@i 
+            ==>
+                (Ex #j #k .
+                    Done(A)@j &
+                    Done(B)@k &
+                    i<j & j<k)
+    "
+    
+lemma SharedKeySecrecyAfterBDone:
+    "All A B sharedKey #i #j.
+        Done(B)@i &
+        SharedKeyGeneratedByB(A,B,sharedKey)@j
+            ==> 
+                (not (Ex #x . K(sharedKey)@x))
+    "
+
+lemma SharedKeySecrecyAfterADone:
+    "All A B sharedKey #i #j.
+        Done(A)@i &
+        SharedKeyGeneratedByA(A,B,sharedKey)@j
+            ==> 
+                (not (Ex #x . K(sharedKey)@x))
+    "
+
+lemma BCanNotFinishIfADidNot://With the present constraints this does not hold, the attacker can inject a <A,'ACK'> message w/o A actually generating the key
+    "
+    All B A sharedKey #j .
+        SharedKeyGeneratedByB(A,B,sharedKey)@j
+            ==> 
+            (Ex #i . 
+                SharedKeyGeneratedByA(A,B,sharedKey)@i &
+                i < j
+            )
+    "
+
+end
