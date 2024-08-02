@@ -79,7 +79,10 @@ rule A_SendACK:
         messageToB = <$A, 'ACK'>
     in
     [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
-    --[ Done($A) ]->
+    --[ 
+        Done($A),
+        SharedKeyGeneratedByA($A, $B, sharedKey)
+     ]->
     [ 
         Out(messageToB),
         !Status_A($A,'DONE') 
@@ -115,12 +118,31 @@ lemma Executable:
                     i<j & j<k)
     "
     
-lemma SharedKeySecrecy:
+lemma SharedKeySecrecyAfterBDone:
     "All A B sharedKey #i #j.
         Done(B)@i &
         SharedKeyGeneratedByB(A,B,sharedKey)@j
             ==> 
                 (not (Ex #x . K(sharedKey)@x))
+    "
+
+lemma SharedKeySecrecyAfterADone:
+    "All A B sharedKey #i #j.
+        Done(A)@i &
+        SharedKeyGeneratedByA(A,B,sharedKey)@j
+            ==> 
+                (not (Ex #x . K(sharedKey)@x))
+    "
+
+lemma BCanNotFinishIfADidNot://With the present constraints this does not hold, the attacker can inject a <A,'ACK'> message w/o A actually generating the key
+    "
+    All B A sharedKey #j .
+        SharedKeyGeneratedByB(A,B,sharedKey)@j
+            ==> 
+            (Ex #i . 
+                SharedKeyGeneratedByA(A,B,sharedKey)@i &
+                i < j
+            )
     "
 
 end

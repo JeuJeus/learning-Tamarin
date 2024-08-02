@@ -99,7 +99,7 @@ lemma Executable:
                     i<j & j<k)
     "
 
-lemma SharedKeySecrecy:
+lemma SharedKeySecrecy://this does not hold due to unsecure communication channel and missing preshared key for public exchange of key material
     "All A B sharedKey #i #j.
         Done(B)@i &
         SharedKeyGeneratedByB(A,B,sharedKey)@j
