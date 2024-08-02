@@ -1,33 +1,36 @@
+
 /*
  *  Author: Julius Figge
- *  Model Name: InitialProtocol.spthy
+ *  Model Name: ExtensionPresharedMasteKey.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
  */
 
-theory InitialProtocol
+theory ExtensionPresharedMasteKey
 begin
 
-functions: keyDerivationFunction/2
+functions: keyDerivationFunction/3
 
 rule RegisterAgent:
-    []
+    [
+        Fr(~preSharedMasterKey)
+    ]
     --[  ]->
-    [ !Agent($X) ]
+    [ !Agent($X, ~preSharedMasterKey) ]
 
 rule A_ComputeAndSendNonce:
     let
         messageToB = <$A, ~nonceFromA>
     in
     [ 
-        !Agent($A),
+        !Agent($A, preSharedMasterKey),
         Fr(~nonceFromA)
      ]
     --[ StartedSharedKeyProcess($A, $B) ]->
     [ 
         Out(messageToB),
-        !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
+        !State_A_AfterSendingNonce($A, $B, preSharedMasterKey, ~nonceFromA)
      ]
 
 rule B_ReceiveNonceComputOwnAndSend:
@@ -37,33 +40,33 @@ rule B_ReceiveNonceComputOwnAndSend:
     in
     [ 
         In(messageFromA),
-        !Agent($B),
+        !Agent($B, preSharedMasterKey),
         Fr(~nonceFromB) ]
     --[  ]->
     [ 
         Out(messageToA),
-        !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
+        !State_B_AfterReceivingNonce($B, $A, preSharedMasterKey, nonceFromA, ~nonceFromB)
      ]
-     
+
 rule A_RecieveNonceInstallSessionKey:
     let
         messageFromB = <$B, nonceFromB>    
-        sharedKey = keyDerivationFunction(nonceFromA, nonceFromB)
+        sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_A_AfterSendingNonce($A, $B, nonceFromA),
+        !State_A_AfterSendingNonce($A, $B, preSharedMasterKey, nonceFromA),
         In(messageFromB) 
     ]
     --[  ]->
     [ 
-        !State_A_AfterKeyDerivation($A, $B, sharedKey)
+        !State_A_AfterKeyDerivation($A, $B, preSharedMasterKey, sharedKey)
      ]
 
 rule A_SendACK: 
     let
         messageToB = <$A, 'ACK'>
     in
-    [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
+    [ !State_A_AfterKeyDerivation($A, $B, preSharedMasterKey, sharedKey) ]
     --[ Done($A) ]->
     [ 
         Out(messageToB),
@@ -73,10 +76,10 @@ rule A_SendACK:
 rule B_ReceiveACK:
     let
         messageFromA = <$A, 'ACK'>
-        sharedKey = keyDerivationFunction(nonceFromA, nonceFromB)
+        sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
+        !State_B_AfterReceivingNonce($B, $A, preSharedMasterKey, nonceFromA, nonceFromB),
         In(messageFromA) 
     ]
     --[ 
@@ -98,7 +101,7 @@ lemma Executable:
                     Done(B)@k &
                     i<j & j<k)
     "
-
+    
 lemma SharedKeySecrecy:
     "All A B sharedKey #i #j.
         Done(B)@i &
@@ -106,4 +109,5 @@ lemma SharedKeySecrecy:
             ==> 
                 (not (Ex #x . K(sharedKey)@x))
     "
+
 end
