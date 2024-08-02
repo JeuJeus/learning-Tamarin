@@ -78,7 +78,10 @@ rule B_ReceiveACK:
         !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
         In(messageFromA) 
     ]
-    --[ Done($B) ]->
+    --[ 
+        Done($B),
+        SharedKeyGeneratedByB($A, $B, sharedKey)
+    ]->
     [ 
         !State_B_AfterACK($B, $A, sharedKey),
         !Status_B($B,'DONE') 
@@ -93,5 +96,12 @@ lemma Executable:
                     Done(A)@j &
                     Done(B)@k &
                     i<j & j<k)
+    "
+lemma SharedKeySecrecy:
+    "All A B sharedKey #i #j.
+        Done(B)@i &
+        SharedKeyGeneratedByB(A,B,sharedKey)@j
+            ==> 
+                (not (Ex #x . K(sharedKey)@x))
     "
 end
