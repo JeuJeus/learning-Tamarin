@@ -1,0 +1,42 @@
+/*
+ *  Author: Julius Figge
+ *  Model Name: InitialProtocol.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ */
+
+theory InitialProtocol
+begin
+
+rule RegisterAgent:
+    []
+    --[  ]->
+    [ !Agent($X) ]
+
+rule A_ComputeAndSendNonce:
+    let
+        messageToB = <$A, ~nonceFromA>
+    in
+    [ 
+        !Agent($A),
+        Fr(~nonceFromA)
+     ]
+    --[  ]->
+    [ Out(messageToB) ]
+
+rule B_ReceiveNonceComputOwnAndSend:
+    let
+        messageFromA = <$A,nonceFromA>
+        messageToA = <$B,~nonceFromB>  
+    in
+    [ 
+        In(messageFromA),
+        !Agent($B),
+        Fr(~nonceFromB) ]
+    --[  ]->
+    [ 
+        Out(messageToA)
+     ]
+
+end
