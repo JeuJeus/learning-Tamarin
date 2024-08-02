@@ -17,20 +17,31 @@ rule RegisterAgent:
         Fr(~preSharedMasterKey)
     ]
     --[  ]->
-    [ !Agent($X, ~preSharedMasterKey) ]
+    [ !Agent($X) ]
+
+rule ExternallyPresharedMasterKey:
+    [ 
+        !Agent($A),
+        !Agent($B),
+        Fr(~preSharedMasterKey)
+     ]
+    --[  ]->
+    [ 
+        !PreSharedMasterKey($A, $B, ~preSharedMasterKey)
+     ]
 
 rule A_ComputeAndSendNonce:
     let
         messageToB = <$A, ~nonceFromA>
     in
     [ 
-        !Agent($A, preSharedMasterKey),
+        !Agent($A),
         Fr(~nonceFromA)
      ]
     --[ StartedSharedKeyProcess($A, $B) ]->
     [ 
         Out(messageToB),
-        !State_A_AfterSendingNonce($A, $B, preSharedMasterKey, ~nonceFromA)
+        !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
      ]
 
 rule B_ReceiveNonceComputOwnAndSend:
@@ -40,12 +51,12 @@ rule B_ReceiveNonceComputOwnAndSend:
     in
     [ 
         In(messageFromA),
-        !Agent($B, preSharedMasterKey),
+        !Agent($B),
         Fr(~nonceFromB) ]
     --[  ]->
     [ 
         Out(messageToA),
-        !State_B_AfterReceivingNonce($B, $A, preSharedMasterKey, nonceFromA, ~nonceFromB)
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
      ]
 
 rule A_RecieveNonceInstallSessionKey:
@@ -54,19 +65,20 @@ rule A_RecieveNonceInstallSessionKey:
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_A_AfterSendingNonce($A, $B, preSharedMasterKey, nonceFromA),
+        !State_A_AfterSendingNonce($A, $B, nonceFromA),
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromB) 
     ]
     --[  ]->
     [ 
-        !State_A_AfterKeyDerivation($A, $B, preSharedMasterKey, sharedKey)
+        !State_A_AfterKeyDerivation($A, $B, sharedKey)
      ]
 
 rule A_SendACK: 
     let
         messageToB = <$A, 'ACK'>
     in
-    [ !State_A_AfterKeyDerivation($A, $B, preSharedMasterKey, sharedKey) ]
+    [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
     --[ Done($A) ]->
     [ 
         Out(messageToB),
@@ -79,7 +91,8 @@ rule B_ReceiveACK:
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_B_AfterReceivingNonce($B, $A, preSharedMasterKey, nonceFromA, nonceFromB),
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromA) 
     ]
     --[ 
