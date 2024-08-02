@@ -9,6 +9,8 @@
 theory InitialProtocol
 begin
 
+functions: keyDerivationFunction/2
+
 rule RegisterAgent:
     []
     --[  ]->
@@ -23,12 +25,15 @@ rule A_ComputeAndSendNonce:
         Fr(~nonceFromA)
      ]
     --[  ]->
-    [ Out(messageToB) ]
+    [ 
+        Out(messageToB),
+        !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
+     ]
 
 rule B_ReceiveNonceComputOwnAndSend:
     let
-        messageFromA = <$A,nonceFromA>
-        messageToA = <$B,~nonceFromB>  
+        messageFromA = <$A, nonceFromA>
+        messageToA = <$B, ~nonceFromB>  
     in
     [ 
         In(messageFromA),
@@ -36,7 +41,46 @@ rule B_ReceiveNonceComputOwnAndSend:
         Fr(~nonceFromB) ]
     --[  ]->
     [ 
-        Out(messageToA)
+        Out(messageToA),
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
+     ]
+rule A_RecieveNonceInstallSessionKey:
+    let
+        messageFromB = <$B, nonceFromB>    
+        sharedKey = keyDerivationFunction(nonceFromA, nonceFromB)
+    in
+    [ 
+        !State_A_AfterSendingNonce($A, $B, nonceFromA),
+        In(messageFromB) 
+    ]
+    --[  ]->
+    [ 
+        !State_A_AfterKeyDerivation($A, $B, sharedKey)
      ]
 
+rule A_SendACK: 
+    let
+        messageToB = <$A, 'ACK'>
+    in
+    [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
+    --[  ]->
+    [ 
+        Out(messageToB),
+        !Status_A($A,'DONE') 
+    ]
+
+rule B_ReceiveACK:
+    let
+        messageFromA = <$A, 'ACK'>
+        sharedKey = keyDerivationFunction(nonceFromA, nonceFromB)
+    in
+    [ 
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
+        In(messageFromA) 
+    ]
+    --[  ]->
+    [ 
+        !State_B_AfterACK($B, $A, sharedKey),
+        !Status_B('DONE') 
+    ]
 end
