@@ -115,6 +115,10 @@ rule B_ReceiveACK:
         !State_B_AfterACK($B, $A, sharedKey),
         !Status_B($B,'DONE') 
     ]
+    
+
+restriction EqualityCheckSuccess: 
+    "All x y #i. Eq(x,y) @ i ==> x = y"    
 
 lemma Executable:
     exists-trace

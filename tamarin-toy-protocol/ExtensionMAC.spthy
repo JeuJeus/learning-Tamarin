@@ -27,6 +27,18 @@ rule ExternallyPresharedMasterKey:
         !PreSharedMasterKey($A, $B, ~preSharedMasterKey)
      ]
 
+rule LeakOfPresharedMasterkey:
+    [
+        !PreSharedMasterKey($A, $B, preSharedMasterKey)
+    ]
+    --[
+        PreAgreedKeyLeaked($A,$B),
+        PreSharedMasterKeyLeaked(preSharedMasterKey)
+    ]->
+    [
+        Out(preSharedMasterKey)
+    ]
+
 rule A_ComputeAndSendNonce:
     let
         signatureOverNonceFromA = sign(~nonceFromA, preSharedMasterKey)
@@ -116,6 +128,9 @@ rule B_ReceiveACK:
         !Status_B($B,'DONE') 
     ]
 
+restriction EqualityCheckSuccess: 
+    "All x y #i. Eq(x,y) @ i ==> x = y"    
+
 lemma Executable:
     exists-trace
     "All A B #i .
@@ -124,13 +139,16 @@ lemma Executable:
                 (Ex #j #k .
                     Done(A)@j &
                     Done(B)@k &
-                    i<j & j<k)
+                    i<j & j<k) &
+                (not Ex #x .
+                    PreAgreedKeyLeaked(A,B)@x)
     "
     
 lemma SharedKeySecrecyAfterBDone:
     "All A B sharedKey #i #j.
         Done(B)@i &
-        SharedKeyGeneratedByB(A,B,sharedKey)@j
+        SharedKeyGeneratedByB(A,B,sharedKey)@j &
+        (not Ex #k . PreAgreedKeyLeaked(A,B)@k)
             ==> 
                 (not (Ex #x . K(sharedKey)@x))
     "
@@ -138,7 +156,8 @@ lemma SharedKeySecrecyAfterBDone:
 lemma SharedKeySecrecyAfterADone:
     "All A B sharedKey #i #j.
         Done(A)@i &
-        SharedKeyGeneratedByA(A,B,sharedKey)@j
+        SharedKeyGeneratedByA(A,B,sharedKey)@j &
+        (not Ex #k . PreAgreedKeyLeaked(A,B)@k)
             ==> 
                 (not (Ex #x . K(sharedKey)@x))
     "
@@ -146,7 +165,8 @@ lemma SharedKeySecrecyAfterADone:
 lemma BCanNotFinishIfADidNot://With the present constraints this does not hold, the attacker can inject a <A,'ACK'> message w/o A actually generating the key
     "
     All B A sharedKey #j .
-        SharedKeyGeneratedByB(A,B,sharedKey)@j
+        SharedKeyGeneratedByB(A,B,sharedKey)@j &
+        (not Ex #k . PreAgreedKeyLeaked(A,B)@k)
             ==> 
             (Ex #i . 
                 SharedKeyGeneratedByA(A,B,sharedKey)@i &
