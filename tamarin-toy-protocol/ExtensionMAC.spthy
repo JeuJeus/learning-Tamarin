@@ -30,6 +30,17 @@
      [ 
         !PreSharedMasterKey($A, $B, ~preSharedMasterKey)
       ]
+
+rule LeakOfPresharedMasterKey:
+      [
+         !PreSharedMasterKey($A, $B, preSharedMasterKey)
+      ]
+      --[
+         LeakedPresharedMasterKey($A, $B)
+      ]->
+      [
+         Out(preSharedMasterKey)
+      ]
  
  rule A_ComputeAndSendNonce:
      let
@@ -149,7 +160,9 @@
              (Ex #i . 
                  SharedKeyGeneratedByA(A,B,sharedKey)@i &
                  i < j
-             )
+             ) |
+             (Ex #x .
+               LeakedPresharedMasterKey(A, B)@x)
      "
  
  end
