@@ -3,7 +3,7 @@
  *  Model Name: ExtensionMAC.spthy
  *  Status: DEVELOPMENTAL
  *
- *  Comments: 
+ *  Comments: currently modeling key leakage but constraining all lemmas to define this never happened does not make much sense, modeling honesty etc. would be relevant here
  */
 
 theory ExtensionMAC
