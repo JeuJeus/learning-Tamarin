@@ -13,96 +13,96 @@ begin
 functions: keyDerivationFunction/3
 
 rule RegisterAgent:
-    [ Fr(~X) ]-->[ !Agent(~X) ]
+    [ ]-->[ !Agent($X) ]
 
 rule ExternallyPresharedMasterKey:
     [ 
-        !Agent(A),
-        !Agent(B),
+        !Agent($A),
+        !Agent($B),
         Fr(~preSharedMasterKey)
      ]
     --[  ]->
     [ 
-        !PreSharedMasterKey(A, B, ~preSharedMasterKey)
+        !PreSharedMasterKey($A, $B, ~preSharedMasterKey)
      ]
 
 rule A_ComputeAndSendNonce:
     let
-        messageToB = <A, ~nonceFromA>
+        messageToB = <$A, ~nonceFromA>
     in
     [ 
-        !Agent(A),
-        !Agent(B),
+        !Agent($A),
+        !Agent($B),
         Fr(~nonceFromA)
      ]
-    --[ StartedSharedKeyProcess(A, B) ]->
+    --[ StartedSharedKeyProcess($A, $B) ]->
     [ 
         Out(messageToB),
-        !State_A_AfterSendingNonce(A, B, ~nonceFromA)
+        !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
      ]
 
 rule B_ReceiveNonceComputOwnAndSend:
     let
-        messageFromA = <A, nonceFromA>
-        messageToA = <B, ~nonceFromB>  
+        messageFromA = <$A, nonceFromA>
+        messageToA = <$B, ~nonceFromB>  
     in
     [ 
         In(messageFromA),
-        !Agent(A),
-        !Agent(B),
+        !Agent($A),
+        !Agent($B),
         Fr(~nonceFromB) ]
     --[  ]->
     [ 
         Out(messageToA),
-        !State_B_AfterReceivingNonce(B, A, nonceFromA, ~nonceFromB)
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
      ]
 
 rule A_RecieveNonceInstallSessionKey:
     let
-        messageFromB = <B, nonceFromB>    
+        messageFromB = <$B, nonceFromB>    
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_A_AfterSendingNonce(A, B, nonceFromA),
-        !PreSharedMasterKey(A, B, preSharedMasterKey),
+        !State_A_AfterSendingNonce($A, $B, nonceFromA),
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromB) 
     ]
     --[  ]->
     [ 
-        !State_A_AfterKeyDerivation(A, B, sharedKey)
+        !State_A_AfterKeyDerivation($A, $B, sharedKey)
      ]
 
 rule A_SendACK: 
     let
-        messageToB = <A, 'ACK'>
+        messageToB = <$A, 'ACK'>
     in
-    [ !State_A_AfterKeyDerivation(A, B, sharedKey) ]
+    [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
     --[ 
-        Done(A),
-        SharedKeyGeneratedByA(A, B, sharedKey)
+        Done($A),
+        SharedKeyGeneratedByA($A, $B, sharedKey)
      ]->
     [ 
         Out(messageToB),
-        !Status_A(A,'DONE') 
+        !Status_A($A,'DONE') 
     ]
 
 rule B_ReceiveACK:
     let
-        messageFromA = <A, 'ACK'>
+        messageFromA = <$A, 'ACK'>
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
-        !State_B_AfterReceivingNonce(B, A, nonceFromA, nonceFromB),
-        !PreSharedMasterKey(A, B, preSharedMasterKey),
+        !State_B_AfterReceivingNonce($B, $A, nonceFromA, nonceFromB),
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromA) 
     ]
     --[ 
-        Done(B),
-        SharedKeyGeneratedByB(A, B, sharedKey)
+        Done($B),
+        SharedKeyGeneratedByB($A, $B, sharedKey)
     ]->
     [ 
-        !State_B_AfterACK(B, A, sharedKey),
-        !Status_B(B,'DONE') 
+        !State_B_AfterACK($B, $A, sharedKey),
+        !Status_B($B,'DONE') 
     ]
 
 lemma Executable:
