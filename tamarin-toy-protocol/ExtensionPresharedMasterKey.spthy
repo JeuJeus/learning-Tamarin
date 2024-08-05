@@ -7,7 +7,7 @@
  *  Comments:
  */
 
-theory ExtensionPresharedMasteKey
+theory ExtensionPresharedMasterKey
 begin
 
 functions: keyDerivationFunction/3
