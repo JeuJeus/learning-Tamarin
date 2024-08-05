@@ -35,4 +35,13 @@ lemma n_exC:
 lemma A_b_C:
   "All x #i. Ba(x) @i ==> Ex #j. Aa(x)@j & j<i"
 
+/* this should imply that there exists no point in time where A(x)=B(x)*/
+lemma NotExistsBxAtSameTimeAsAx:
+    "All x #i . Ba(x)@i
+        ==> 
+            not( Ex #j . 
+                Aa(x)@j &
+                #i=#j
+            )"
+
 end
