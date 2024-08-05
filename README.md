@@ -7,3 +7,4 @@ In this repo I document my first steps.
 | ------- | -------------------------------- |
 | Tutorial Exercise | [Tamarin Workshop by Felix Linker](tamarin-workshop) |
 | Tutorial Exercise | [Tamarin Toy Protocol by Benjamin Kiesl](tamarin-toy-protocol) |
+| Exercises | [Tamarin Crypto Engineering  by Verimag](tamarin-verimag-exercises) |
