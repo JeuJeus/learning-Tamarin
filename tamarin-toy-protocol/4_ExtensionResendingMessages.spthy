@@ -54,6 +54,18 @@ rule A_ComputeAndSendNonce:
         !State_A_AfterSendingNonce($A, $B, ~nonceFromA)
      ]
 
+rule A_ResendNonceAssumeLost:
+    let
+        signatureOverNonceFromA = sign(~nonceFromA, preSharedMasterKey)
+        messageToB = <$A, ~nonceFromA, signatureOverNonceFromA>
+    in
+    [ 
+        !PreSharedMasterKey($A, $B, preSharedMasterKey),
+        !State_A_AfterSendingNonce($A, $B, ~nonceFromA) 
+    ]
+    --[ DidResendANonce() ]->
+    [ Out(messageToB) ]
+
 rule B_ReceiveNonceComputOwnAndSend:
     let
         messageFromA = <$A, nonceFromA, nonceFromASignature>
