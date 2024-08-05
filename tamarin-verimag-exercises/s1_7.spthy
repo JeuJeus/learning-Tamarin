@@ -6,8 +6,8 @@ begin
 /* So both events of the form  Ba(x) and  Ca() can occur, but no events of the form Db()  */
 /* Moreover the adversary is able to compute 'a' but not 'b' */
 
-functions: a/0 [private], b/0 [private],  f/2
-equations: f(x,x) = a
+functions: a/0 [private], b/0 [private], f/2, g/3
+equations: f(x,x)=a, g(x,x,x)=b
 
 rule GenB:
 [In(x)]--[Ba(x)]->[B(x)]
@@ -28,18 +28,19 @@ lemma exC:
   exists-trace
     "Ex #i. Ca() @i
     "
-lemma n_exD:
-    "All #i. Db() @i ==> F
+/* inverted regular functionality by providing option to compute b=g(x,a) */
+lemma exD:
+    "Ex #i. Db() @i
     "
 /* secrecy of b */
 
-lemma b_is_sec: 
-    "not ( Ex  #i . KU(b)@i ) "
+lemma b_is_n_sec: 
+    exists-trace
+    "Ex  #i . KU(b)@i"
 
-
-
-lemma b_is_sec2: 
-    "not ( Ex  #i . K(b)@i ) "
+lemma b_is_n_sec2: 
+    exists-trace
+    "Ex  #i . K(b)@i"
 
 /* secrecy of a is not satisfied */
 
@@ -47,11 +48,8 @@ lemma a_is_n_sec:
     exists-trace
     "Ex  #i . KU(a)@i  "
 
-
-
 lemma a_is_n_sec2: 
     exists-trace
     "Ex  #i . K(a)@i  "
-
 
 end
