@@ -1,15 +1,14 @@
+
 /*
  *  Author: Julius Figge
- *  Model Name: Experiment_ExtensionSigningWithPresharedKey.spthy
+ *  Model Name: 2_ExtensionPresharedMasteKey.spthy
  *  Status: DEVELOPMENTAL
  *
- *  Comments: this does not provide protection against fraudulent ACK injection by Adversary due to dependency on sharedKey as basis, just out of curiosity
+ *  Comments:
  */
 
-theory Experiment_ExtensionSigningWithPresharedKey
+theory 2_ExtensionPresharedMasterKey
 begin
-
-builtins: signing
 
 functions: keyDerivationFunction/3
 
@@ -29,11 +28,11 @@ rule ExternallyPresharedMasterKey:
 
 rule A_ComputeAndSendNonce:
     let
-        signatureOverNonceFromA = sign(~nonceFromA, preSharedMasterKey)
-        messageToB = <$A, ~nonceFromA, signatureOverNonceFromA>
+        messageToB = <$A, ~nonceFromA>
     in
     [ 
-        !PreSharedMasterKey($A, $B, preSharedMasterKey),
+        !Agent($A),
+        !Agent($B),
         Fr(~nonceFromA)
      ]
     --[ StartedSharedKeyProcess($A, $B) ]->
@@ -44,17 +43,15 @@ rule A_ComputeAndSendNonce:
 
 rule B_ReceiveNonceComputOwnAndSend:
     let
-        messageFromA = <$A, nonceFromA, nonceFromASignature>
-        signatureOverNonceFromB = sign(~nonceFromB, preSharedMasterKey)
-        messageToA = <$B, ~nonceFromB, signatureOverNonceFromB>  
+        messageFromA = <$A, nonceFromA>
+        messageToA = <$B, ~nonceFromB>  
     in
     [ 
         In(messageFromA),
-        !PreSharedMasterKey($A, $B, preSharedMasterKey),
+        !Agent($A),
+        !Agent($B),
         Fr(~nonceFromB) ]
-    --[ 
-        Eq(verify(nonceFromASignature,nonceFromA,pk(preSharedMasterKey)), true)
-     ]->
+    --[  ]->
     [ 
         Out(messageToA),
         !State_B_AfterReceivingNonce($B, $A, nonceFromA, ~nonceFromB)
@@ -62,7 +59,7 @@ rule B_ReceiveNonceComputOwnAndSend:
 
 rule A_RecieveNonceInstallSessionKey:
     let
-        messageFromB = <$B, nonceFromB, nonceFromBSignature>    
+        messageFromB = <$B, nonceFromB>    
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
@@ -70,22 +67,16 @@ rule A_RecieveNonceInstallSessionKey:
         !PreSharedMasterKey($A, $B, preSharedMasterKey),
         In(messageFromB) 
     ]
-    --[ 
-        Eq(verify(nonceFromBSignature,nonceFromB,pk(preSharedMasterKey)), true)
-     ]->
+    --[  ]->
     [ 
         !State_A_AfterKeyDerivation($A, $B, sharedKey)
      ]
 
 rule A_SendACK: 
     let
-        ackMesage = 'ACK' 
-        messageToB = <$A, ackMesage, sign(ackMesage, preSharedMasterKey)>
+        messageToB = <$A, 'ACK'>
     in
-    [ 
-        !PreSharedMasterKey($A, $B, preSharedMasterKey),
-        !State_A_AfterKeyDerivation($A, $B, sharedKey) 
-    ]
+    [ !State_A_AfterKeyDerivation($A, $B, sharedKey) ]
     --[ 
         Done($A),
         SharedKeyGeneratedByA($A, $B, sharedKey)
@@ -97,8 +88,7 @@ rule A_SendACK:
 
 rule B_ReceiveACK:
     let
-        ackMesage = 'ACK'      
-        messageFromA = <$A, ackMesage, ackMesageSignature>
+        messageFromA = <$A, 'ACK'>
         sharedKey = keyDerivationFunction(preSharedMasterKey, nonceFromA, nonceFromB)
     in
     [ 
@@ -107,7 +97,6 @@ rule B_ReceiveACK:
         In(messageFromA) 
     ]
     --[ 
-        Eq(verify(ackMesageSignature,ackMesage,pk(preSharedMasterKey)), true),
         Done($B),
         SharedKeyGeneratedByB($A, $B, sharedKey)
     ]->
@@ -115,10 +104,6 @@ rule B_ReceiveACK:
         !State_B_AfterACK($B, $A, sharedKey),
         !Status_B($B,'DONE') 
     ]
-    
-
-restriction EqualityCheckSuccess: 
-    "All x y #i. Eq(x,y) @ i ==> x = y"    
 
 lemma Executable:
     exists-trace

@@ -1,12 +1,12 @@
 /*
  *  Author: Julius Figge
- *  Model Name: InitialProtocol.spthy
+ *  Model Name: 1_InitialProtocol.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
  */
 
-theory InitialProtocol
+theory 1_InitialProtocol
 begin
 
 functions: keyDerivationFunction/2
