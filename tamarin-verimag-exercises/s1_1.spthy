@@ -4,34 +4,45 @@ begin
 functions: a/0
 
 /* without '!' before,  facts are linear. But the  rule GenA allows to  generate facts of the form A(a) with the same value 'a' infinitely times . In this example, 'a' is a constant - a function of arity 0 */
-/* So both events of the form Ba(x) and Ca(x) can occur  */
-/* moreover, each event of the form Ba(x) should be preceded by an event of the form Aa(x) */
+/* So both events of the form GeneratedBa(x) and GeneratedCx(x) can occur  */
+/* moreover, each event of the form GeneratedBa(x) should be preceded by an event of the form GeneratedAa(x) */
 
 rule GenA:
-[]--[Aa(a)]->[A(a)]
+[]--[GeneratedAa(a)]->[A(a)]
 
 rule GenB:
-[A(x)]--[Ba(x)]->[B(x)]
+[A(x)]--[GeneratedBa(x)]->[B(x)]
 
 rule GenC:
-[A(x), B(x)]--[Ca(x)]->[C(x)]
+[A(x), B(x)]--[GeneratedCx(x)]->[C(x)]
 
-/* an event of the form Ba(x) can occur */
+/* an event of the form GeneratedBa(x) can occur */
 
 lemma exB:
   exists-trace
-    "Ex x #i. Ba(x) @i
+    "Ex x #i. GeneratedBa(x) @i
     "
-/* an  event of type Ca(x) can occur */
+/* an  event of type GeneratedCx(x) can occur */
    
 lemma exC:
   exists-trace
-    "Ex x #i. Ca(x) @i
+    "Ex x #i. GeneratedCx(x) @i
     "
 
-/* each event of the form Ba(x) should be preceded by an event of the form Aa(x) */   
+/* each event of the form GeneratedBa(x) should be preceded by an event of the form GeneratedAa(x) */   
 
-lemma A_b_C:
-  "All x #i. Ba(x) @i ==> Ex #j. Aa(x)@j & j<i"
+lemma GenerateBaImpliesGeneratedAaBefore:
+  "All x #i. GeneratedBa(x) @i ==> Ex #j. GeneratedAa(x)@j & j<i"
+
+lemma GeneratedCxImpliesGeneratedBaBefore:
+"All x #i. GeneratedCx(x) @i ==> Ex #j. GeneratedBa(x)@j & j<i"
+
+lemma GeneratedCxImpliesGeneratedBaAndAaBefore:
+"All x #k . GeneratedCx(x)@k
+  ==> Ex #i #j .
+    GeneratedBa(x)@j &
+    GeneratedAa(x)@i &
+    i < j &
+    j < k"
 
 end
