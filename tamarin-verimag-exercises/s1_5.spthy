@@ -11,6 +11,11 @@ rule GenA:
 [Fr(~r)]--[Aa(~r)]->[A(~r)]
 
 /* modifications allowin for leak of A(x), whilst maintaining A(x) - therefore making nexC reacable */
+rule LeakA:
+[A(x)]--[LeakedA(x)]->[
+    Out(x),
+    A(x)
+]
 
 rule Rev:
 [A(x)]--[Rev(x)]->[Out(x)]
@@ -31,7 +36,7 @@ lemma exB:
     "
 
 lemma nexC:
-    "All x #i. Ca(x) @i ==> F
+    "All x #i. Ca(x) @i ==> F | (Ex #j . LeakedA(x)@j)
     "
 
 lemma exD:
