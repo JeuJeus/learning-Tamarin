@@ -1,0 +1,38 @@
+theory simple2
+begin
+
+functions: a/0
+
+/* without '!' before,  facts are linear.
+Fresh fact ensures that rule GenA will always generate facts of the form A(x) with a new 'x' value each time*/
+/* So an event of the form Ba(x) can occur using a trace containing an application of rule GenA followed by an application of rule GenB */
+/*  No  event of type Ca(x)   can oocur since it needs two facts of the form A(a) and B(a) with a same 'a' and this is not possible
+as the rule GenB will consume a fact A(a), and any new application of rule GenA will generate a fact A(a1) wit a fresh 'a1' */
+/* moreover, each event of the form Ba(x) should be preceded by an event of the form Aa(x) */
+
+rule GenA:
+[Fr(~r)]--[Aa(~r)]->[A(~r)]
+
+rule GenB:
+[A(x)]--[Ba(x)]->[B(x)]
+
+rule GenC:
+[A(x), B(x)]--[Ca(x)]->[C(x)]
+
+/* an event of the form Ba(x) can occur */
+
+lemma exB:
+  exists-trace
+    "Ex x #i. Ba(x) @i
+    "
+/* no  event of type Ca(x) can occur - here 'F' is the false predicate */
+   
+lemma n_exC:
+    "All x #i. Ca(x) @i ==> F"
+ 
+/* each event of the form Ba(x) should be preceded by an event of the form Aa(x) */   
+
+lemma A_b_C:
+  "All x #i. Ba(x) @i ==> Ex #j. Aa(x)@j & j<i"
+
+end
