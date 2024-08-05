@@ -10,6 +10,8 @@ functions: a/0
 rule GenA:
 [Fr(~r)]--[Aa(~r)]->[A(~r)]
 
+/* modifications allowin for leak of A(x), whilst maintaining A(x) - therefore making nexC reacable */
+
 rule Rev:
 [A(x)]--[Rev(x)]->[Out(x)]
 
