@@ -26,5 +26,19 @@ lemma exB:
 lemma Bs_Ba:
     "All x #i. Ba(x) @i ==> Ex #j. Bs(x)@j & j<i
     "
+/*Add a lemma stating that there exists a trace
+with events Bs(x) and Bs(y) such that x̸=y.*/
+lemma MultipleOccurencesOfBsWithDifferentValues:
+    exists-trace
+    "All x #i . Bs(x)@i 
+        ==> Ex y #j . 
+                Bs(y)@j &
+                not(x=y)
+    "
+
+/*Add a lemma stating that for any trace,
+an event Bs(x) can not occure twice with the same x. */
+lemma EventBsHasUniqueValuesOfx:
+    "All x #i #j . Bs(x)@i & Bs(x)@j ==> #i=#j"
 
 end
