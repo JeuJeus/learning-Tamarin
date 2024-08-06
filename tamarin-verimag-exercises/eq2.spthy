@@ -11,29 +11,43 @@ in order to execute tamarin
 
 functions: penc/3, pdec/2, pk/1
 
-equations: pdec(penc(m, pk(k), r), k)=m
+equations: pdec(penc(message, pk(key), random), key)=message
 
 //PKI
-rule R_pk:
-[ Fr(~ltk) ]  --> [ !Ltk($A,~ltk), !Pk($A, pk(~ltk)) ]
+rule Register_Publickey:
+[ Fr(~longtermkey) ]  
+--> 
+[ 
+    !Longtermkey($A,~longtermkey), 
+    !Pk($A, pk(~longtermkey)) 
+]
 
-rule Out_pk:
-[ !Pk($A, pubk) ] --> [ Out(pubk) ]
+rule Out_Publickey:
+[ !Pk($A, publickey) ] --> [ Out(publickey) ]
 
-
-rule Exemple1:
-[ !Ltk($A, ltk), Fr(~x), Fr(~y), Fr(~r) ]
---[ Secret(~y) ]->
-[ Out(~x), Out(diff(  penc(~x , pk(ltk), ~r), penc(~y , pk(ltk), ~r) )) ]
-
-
+rule Example1:
+let 
+    publickey = pk(longtermkey)
+in
+[ 
+    !Longtermkey($A, longtermkey), 
+    Fr(~fakeMessage), 
+    Fr(~realMessage), 
+    Fr(~random) 
+]
+--[ Secret(~realMessage) ]->
+[ 
+    Out(~fakeMessage), 
+    Out(diff(  
+        penc(~fakeMessage , publickey, ~random), 
+        penc(~realMessage , publickey, ~random) 
+    )) 
+]
 
 //Properties
 lemma Secret:
 "
   All B #i. Secret(B)@i ==> not( Ex #j. K(B)@j )
 "
-
-
 
 end 
