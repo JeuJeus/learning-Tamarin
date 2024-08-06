@@ -1,0 +1,125 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: NSL_Protocol.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ *   1. A -> B: {|na|}k(A,B) 
+ *   2. A <- B: {|nb|}k(A,B), na 
+ *  version 'msc NSL, instrumented for A to with B on N_A,N_B' 
+ *  from https://www-verimag.imag.fr/%7Eene/m2p/m2p_s.pdf
+ */
+
+theory NSL_Protocol
+begin
+
+builtins: asymmetric-encryption
+
+//PKI
+rule Register_Publickey:
+    let
+        publickey = pk(~longtermkey)
+    in
+    [ Fr(~longtermkey) ]
+    --[  ]->
+    [ 
+        !Longtermkey($X, ~longtermkey),
+        !Publickey($X, publickey)
+     ]
+
+rule Publish_Publickey:
+    [ !Publickey($X, publickey) ]
+    -->
+    [ Out(publickey) ]
+
+//Communication 
+rule A_InitCommunication:
+    let
+        messageToB = <~nonceA, $A>
+        messageToBEncryptedWithPublickeyB = aenc(messageToB, publickeyB)
+    in
+    [ 
+        Fr(~nonceA),
+        !Publickey($B, publickeyB),
+        !Longtermkey($A, longtermkey)
+    ]
+    --[ 
+
+     ]->
+    [ 
+        Out(messageToBEncryptedWithPublickeyB),
+        A_State($A, 'SENT_NONCE', $B, ~nonceA) 
+    ]
+
+rule B_ReceiveInitWithNonce:
+    let
+        messageFromA = adec(messageFromAEncryptedWithPublickeyB,longtermkeyB)
+        nonceAFromMessage = fst(messageFromA)
+        aFromMessage = snd(messageFromA)
+        messageToA = <nonceAFromMessage,~nonceB, $B>
+        messageToAEncryptedWithPublickeyA = aenc(messageToA, publickeyA)
+    in
+    [ 
+        !Longtermkey($B, longtermkeyB),
+        !Publickey(aFromMessage, publickeyA),
+        In(messageFromAEncryptedWithPublickeyB),
+        Fr(~nonceB)
+    ]
+    --[ 
+        Running(aFromMessage, nonceAFromMessage, ~nonceB)
+    ]->
+    [ 
+        Out(messageToAEncryptedWithPublickeyA),
+        B_State($B, 'RECIEVED_NONCE_SENT_OWN_NONCE', aFromMessage)
+    ]
+
+rule A_ReceiveBRunningWithNonce:
+    let
+        messageFromB = adec(messageFromBEncryptedWithPublickeyA,longtermkeyA)
+        nonceAFromMessage = fst(messageFromB)
+        nonceBAndBFromMessage = snd(messageFromB)
+        nonceBFromMessage = fst(nonceBAndBFromMessage)
+        bFromMessage = snd(nonceBAndBFromMessage)
+        messageToB = <nonceBFromMessage>
+        messageToBEncryptedWithPublickeyB = aenc(messageToB, publickeyB)
+    in
+    [ 
+        !Longtermkey($A, longtermkeyA),
+        !Publickey(bFromMessage, publickeyB),
+        A_State($A, 'SENT_NONCE', bFromMessage , nonceAFromMessage),
+        In(messageFromBEncryptedWithPublickeyA)
+     ]
+    --[ 
+        Commit(bFromMessage, nonceAFromMessage, nonceBFromMessage)
+     ]->
+    [ 
+        Out(messageToBEncryptedWithPublickeyB),
+        A_State($A,'AFTER_COMMIT_RETURNED_NONCE_B', bFromMessage, <nonceBFromMessage, nonceAFromMessage>)
+     ]
+
+lemma Executable:
+exists-trace
+"
+    All B nonceA nonceB #j .
+        Commit(B, nonceA, nonceB)@j  
+            ==>
+                Ex A #i . Running(A,nonceA,nonceB)@i 
+"
+
+//A protocol guarantees 
+//to an agent a in role A aliveness of another agent b if,
+// whenever a completes a run of the protocol, 
+//apparently with b in role B, 
+//then b has previously been running the protocol.
+lemma Aliveness:
+"
+    All B nonceA nonceB #j .
+    Commit(B, nonceA, nonceB)@j  
+        ==>
+            Ex A #i . Running(A,nonceA,nonceB)@i &
+                i<j //this will not work due to attacker hijacking session establishment
+"
+
+
+end
