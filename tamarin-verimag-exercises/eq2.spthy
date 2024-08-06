@@ -37,17 +37,53 @@ in
 ]
 --[ Secret(~realMessage) ]->
 [ 
-    Out(~fakeMessage), 
+    Out(~fakeMessage)/*, 
     Out(diff(  
         penc(~fakeMessage , publickey, ~random), 
         penc(~realMessage , publickey, ~random) 
-    )) 
+    ))*/ 
 ]
 
 //Properties
 lemma Secret:
 "
   All B #i. Secret(B)@i ==> not( Ex #j. K(B)@j )
+"
+
+rule ProbabilisticEncryption:
+let 
+    publickey = pk(longtermkey)
+    encryptedMessage = penc(~message , publickey, ~random) 
+in
+[ 
+    !Longtermkey($A, longtermkey), 
+    Fr(~message), 
+    Fr(~random) 
+]
+--[ 
+    KeyAndMessage(~message,publickey),
+    UsedRandom(~random), 
+    EncryptedMessage(encryptedMessage)
+]->
+[ 
+    Out(encryptedMessage)
+]
+
+//prove that encryption is probabilistic
+lemma ProbabilisticEncryptionPropertyWithoutDiffMode:
+"
+    All message publickey random encryptedMessage otherRandom otherEncryptedMessage #i #j . 
+        (
+            KeyAndMessage(message,publickey)@i &
+            UsedRandom(random)@i &
+            EncryptedMessage(encryptedMessage)@i
+        ) & (
+            KeyAndMessage(message,publickey)@j &
+            UsedRandom(otherRandom)@j &
+            EncryptedMessage(otherEncryptedMessage)@j
+        ) & not(random = otherRandom)
+            ==> 
+                not(encryptedMessage=otherEncryptedMessage)
 "
 
 end 
