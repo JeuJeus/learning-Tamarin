@@ -1,0 +1,39 @@
+theory eq2
+begin
+/* for this example you should use the command
+tamarin-prover  interactive --diff shared/eq2.spthy
+in order to execute tamarin
+*/
+/* penc is probabilistic encryption */
+
+/* lemma 'Secret' states that the plaintext remains secret */
+/* lemma  'Observational_equivalence' automatically gerenrated by Tamarin with the option '--diff" states that the plaintext is a strong secret, the adversary cannot distinguish the encryption of the known plaintext from the   encryption of an unknown plaintext */
+
+functions: penc/3, pdec/2, pk/1
+
+equations: pdec(penc(m, pk(k), r), k)=m
+
+//PKI
+rule R_pk:
+[ Fr(~ltk) ]  --> [ !Ltk($A,~ltk), !Pk($A, pk(~ltk)) ]
+
+rule Out_pk:
+[ !Pk($A, pubk) ] --> [ Out(pubk) ]
+
+
+rule Exemple1:
+[ !Ltk($A, ltk), Fr(~x), Fr(~y), Fr(~r) ]
+--[ Secret(~y) ]->
+[ Out(~x), Out(diff(  penc(~x , pk(ltk), ~r), penc(~y , pk(ltk), ~r) )) ]
+
+
+
+//Properties
+lemma Secret:
+"
+  All B #i. Secret(B)@i ==> not( Ex #j. K(B)@j )
+"
+
+
+
+end 
