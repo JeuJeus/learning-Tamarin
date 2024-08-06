@@ -11,15 +11,12 @@ rule Start:
 rule Out_pk:
 [ Nat(n) ] --[ Bigger() ]-> [ Nat(succ(n)) ]
 
-
-
-
 //Properties
 lemma Origin:
+"All #i. Bigger()@i 
+    ==> Ex #j. 
+        Start()@j &
+        #j < #i
 "
-  All #i. Bigger()@i ==> Ex #j. Start()@j 
-"
-
-
 
 end 
