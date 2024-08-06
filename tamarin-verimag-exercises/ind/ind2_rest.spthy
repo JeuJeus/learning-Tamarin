@@ -4,7 +4,7 @@ begin
 /* the restriction 'once' will bind the possible traces only to traces having at most one event 'Bigger'  */
 /* Hence, we do not need to use induction in order to prove the lemma Origin this time! */ 
 
-functions: z/0, succ/1
+functions: z/0, succ/1, predecc/1
 
 rule Start:
 [  ]  --[ Start() ]-> [ Nat(z) ]
@@ -12,18 +12,26 @@ rule Start:
 rule Out_pk:
 [ Nat(n) ] --[ Bigger() ]-> [ Nat(succ(n)) ]
 
+rule Out_pk_Smaller:
+[ Nat(n) ] --[ Smaller() ]-> [ Nat(predecc(n)) ]
+
 restriction once:
 " 
-All #i #j. Bigger()@i & Bigger()@j ==> #i=#j 
+(All #i #j. Bigger()@i & Bigger()@j ==> #i=#j) &
+(All #i #j. Smaller()@i & Smaller()@j ==> #i=#j) 
 "
-
 
 //Properties
 lemma Origin:
 "
-  All #i. Bigger()@i ==> Ex #j. Start()@j 
+(All #j . Bigger()@j  
+    ==> Ex #i . 
+        Start()@i &
+        i < j)  &
+(All #k . Smaller()@k 
+    ==> Ex #i . 
+        Start()@i &
+        i < k)
 "
-
-
 
 end 
