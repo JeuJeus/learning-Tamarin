@@ -16,7 +16,7 @@ builtins: symmetric-encryption
 
 rule Register_Sharedkey:
     [ Fr(~sharedKey) ]
-    --[  ]->
+    --[ CreatedSharedkey($A,$B, ~sharedKey) ]->
     [ !Sharedkey($A,$B,~sharedKey) ]
 
 rule Initiator_SendeEncryptedNonce:
@@ -66,9 +66,18 @@ rule Initiator_ReceiveResponseBothNonces:
         Out(decryptedNonceFromB)
      ]
 
+
+lemma Executable:
+exists-trace
+"
+    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j
+"
+
 lemma Aliveness:
 "
-    All B #j . Commit(B)@j ==> Ex A #i . Running(A)@i
+    All B #j . Commit(B)@j 
+        ==>
+            Ex A #i . (Running(A)@i & i<j) 
 "
 
 end
