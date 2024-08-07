@@ -1,0 +1,66 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise4_MutualAuthenticationProtocol.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * 1. A -> B: {|na|}k(A,B) //this is symmetric encryption,
+ * 2. A <- B: {|nb|}k(A,B), na //so you should use "builtins: symmetric-encryption"
+ */
+
+theory Exercise4_MutualAuthenticationProtocol
+begin
+
+builtins: symmetric-encryption
+
+rule Initiator_SendeEncryptedNonce:
+    let
+        messageToB = senc(~nonceA, $sharedKey)
+    in
+    [ 
+        Fr(~nonceA)
+     ]
+    --[  ]->
+    [ 
+        Out(messageToB) 
+    ]
+
+rule Responder_ReceiveNonceAndRespond:
+    let
+        decryptedNonceFromA = sdec(messageFromA, $sharedKey)
+        encryptedNonceFromB = senc(~nonceB, $sharedKey)
+        messageToA = <encryptedNonceFromB,decryptedNonceFromA>
+    in
+    [ 
+        In(messageFromA),
+        Fr(~nonceB)
+     ]
+    --[ 
+        Running($A)
+     ]->
+    [ 
+        Out(messageToA)
+     ]
+
+rule Initiator_ReceiveResponseBothNonces:
+    let
+        encryptedNonceFromB = fst(messageFromB)
+        decryptedNonceFromB = sdec(encryptedNonceFromB, $sharedKey)
+    in
+    [ 
+        In(messageFromB)
+     ]
+    --[ 
+        Commit($B)
+     ]->
+    [ 
+        Out(decryptedNonceFromB)
+     ]
+
+lemma Aliveness:
+"
+    All B #j . Commit(B)@j ==> Ex A #i . Running(A)@i
+"
+
+end
