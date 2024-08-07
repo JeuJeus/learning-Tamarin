@@ -1,17 +1,15 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: NSL_Protocol.spthy
+ *  Model Name: Experiment_NSL_Protocol.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
- *   1. A -> B: {|na|}k(A,B) 
- *   2. A <- B: {|nb|}k(A,B), na 
  *  version 'msc NSL, instrumented for A to with B on N_A,N_B' 
  *  from https://www-verimag.imag.fr/%7Eene/m2p/m2p_s.pdf
  */
 
-theory NSL_Protocol
+theory Experiment_NSL_Protocol
 begin
 
 builtins: asymmetric-encryption

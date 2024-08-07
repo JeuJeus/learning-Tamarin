@@ -1,13 +1,13 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: Simplified_NslProtocol_Experiment.spthy
+ *  Model Name: Experiment_Simplified_NslProtocol.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments: Essentially a simplified version of NSL_Protocol
  */
 
-theory Simplified_NslProtocol_Experiment
+theory Experiment_Simplified_NslProtocol
 begin
 
 builtins: asymmetric-encryption
@@ -95,7 +95,5 @@ lemma Aliveness:
                 i<j //this will not work due to attacker hijacking session establishment, 
                 //there is no security due to lack of state in protocol partners / exchange
 "
-
-
 
 end
