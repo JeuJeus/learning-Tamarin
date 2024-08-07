@@ -14,11 +14,17 @@ begin
 
 builtins: symmetric-encryption
 
+rule Register_Sharedkey:
+    [ Fr(~sharedKey) ]
+    --[  ]->
+    [ !Sharedkey($A,$B,~sharedKey) ]
+
 rule Initiator_SendeEncryptedNonce:
     let
-        messageToB = senc(~nonceA, $sharedKey)
+        messageToB = senc(~nonceA, sharedKey)
     in
     [ 
+        !Sharedkey($A,$B,sharedKey),
         Fr(~nonceA)
      ]
     --[  ]->
@@ -28,11 +34,12 @@ rule Initiator_SendeEncryptedNonce:
 
 rule Responder_ReceiveNonceAndRespond:
     let
-        decryptedNonceFromA = sdec(messageFromA, $sharedKey)
-        encryptedNonceFromB = senc(~nonceB, $sharedKey)
+        decryptedNonceFromA = sdec(messageFromA, sharedKey)
+        encryptedNonceFromB = senc(~nonceB, sharedKey)
         messageToA = <encryptedNonceFromB,decryptedNonceFromA>
     in
     [ 
+        !Sharedkey($A,$B,sharedKey),
         In(messageFromA),
         Fr(~nonceB)
      ]
@@ -46,9 +53,10 @@ rule Responder_ReceiveNonceAndRespond:
 rule Initiator_ReceiveResponseBothNonces:
     let
         encryptedNonceFromB = fst(messageFromB)
-        decryptedNonceFromB = sdec(encryptedNonceFromB, $sharedKey)
+        decryptedNonceFromB = sdec(encryptedNonceFromB, sharedKey)
     in
     [ 
+        !Sharedkey($A,$B,sharedKey),
         In(messageFromB)
      ]
     --[ 
