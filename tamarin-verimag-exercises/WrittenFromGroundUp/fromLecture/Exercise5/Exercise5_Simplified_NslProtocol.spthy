@@ -68,6 +68,7 @@ rule Initiator_ReceiveNonce:
         In(nonceAFromB)
      ]
     --[ 
+        ReceivedNonce(nonceAFromB),
         Commit($B),
         ProtocolRunWith($A,$B)
      ]->
@@ -93,12 +94,14 @@ lemma messageReceivedByBIsFromAOrAdversary [sources]:
 //then b has previously been running the protocol.
 lemma Aliveness:
 "
-    All A B #j .
+    All A B nonceA #j .
     Commit(B)@j &
+    ReceivedNonce(nonceA)@j &
     ProtocolRunWith(A,B)@j
         ==>
-            Ex A #i . 
+            Ex A message #i . 
                 Running(A)@i &
+                ReceivedMessage(message)@i &
                 ProtocolRunWith(A,B)@i &
                 i<j //this will not work due to attacker hijacking session establishment, 
                 //there is no security due to lack of state in protocol partners / exchange
