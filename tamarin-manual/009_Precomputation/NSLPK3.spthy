@@ -126,4 +126,24 @@ lemma nonce_secrecy:
         not (Ex #r . RevealLongtermkey(B)@r)
         )
 "
+
+lemma types [sources]:
+"
+    (All nonceInitiator firstMessage #i . 
+        In_Responder_First_NonceInitiator(nonceInitiator,firstMessage)@i
+            ==>
+                (
+                    (Ex #j . KU(nonceInitiator)@j & j<i) |
+                    (Ex #j . Out_Initiator_FirstStep(firstMessage)@j)
+                )
+    ) &
+    (All nonceResponder secondMessage #i .
+        In_Initiator_Second_NonceResponder(nonceResponder, secondMessage)@i 
+            ==>
+                (
+                    (Ex #j . KU(nonceResponder)@j & j<i) |
+                    (Ex #j . Out_Responder_First(secondMessage)@j)
+                )
+    )
+"
 end
