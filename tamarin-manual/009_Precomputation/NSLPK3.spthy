@@ -28,8 +28,8 @@ rule Publish_Publickey:
     [ Out(publickey) ]
 
 rule Reveal_Longtermkey:
-    [ !Longtermkey($X, longtermkey) ]
-    --[ RevealLongtermkey($X) ]->
+    [ !Longtermkey(X, longtermkey) ]
+    --[ RevealLongtermkey(X) ]->
     [ Out(longtermkey) ]
 
 rule Initiator_FirstStep:
@@ -52,7 +52,7 @@ rule Responder_FirstStep:
         firstMessage = <'1',nonceInitiator, Initiator>
         firstMessageEncrypted = aenc(firstMessage, publickeyResponder)
         secondMessage = <'2',nonceInitiator, ~nonceResponder, $Responder>
-        secondMessageEncrypted = aenc(secondMessage, publickeyInitiators)
+        secondMessageEncrypted = aenc(secondMessage, publickeyInitiator)
     in
     [ 
         In(firstMessageEncrypted),
@@ -61,12 +61,12 @@ rule Responder_FirstStep:
         Fr(~nonceResponder)
      ]
     --[ 
-        In_Responder_First_NonceInitiator(nonceInitiator, firstMessage),
-        Out_Responder_First(secondMessage),
+        In_Responder_First_NonceInitiator(nonceInitiator, firstMessageEncrypted),
+        Out_Responder_First(secondMessageEncrypted),
         Running(Initiator, $Responder, <'INIT',nonceInitiator,~nonceResponder>)
      ]->
     [ 
-        Out(secondMessage),
+        Out(secondMessageEncrypted),
         State_Responder_First($Responder,Initiator,nonceInitiator,~nonceResponder)
      ]
 
@@ -85,12 +85,12 @@ rule Initiator_SecondStep:
         In(secondMessageEncrypted)
      ]
     --[ 
-        In_Initiator_Second_NonceResponder(nonceResponder, secondMessage),
+        In_Initiator_Second_NonceResponder(nonceResponder, secondMessageEncrypted),
         Commit(Initiator,Responder, <'INIT',nonceInitiator,nonceResponder>),
         Running(Responder, Initiator, <'RESP', nonceInitiator, nonceResponder>)
      ]->
     [ 
-        Out(thirdMessage),
+        Out(thirdMessageEncrypted),
         Secret(Initiator,Responder,nonceResponder),
         Secret(Initiator,Responder,nonceInitiator)
      ]
