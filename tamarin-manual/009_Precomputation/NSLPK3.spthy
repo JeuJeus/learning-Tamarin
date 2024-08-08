@@ -1,0 +1,129 @@
+/*
+ *  Author: Julius Figge
+ *  Model Name: NSLPK3.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ */
+
+theory NSLPK3
+begin
+
+builtins: asymmetric-encryption
+
+rule Register_Publickey:
+    let 
+        publickey = pk(~longtermkey)
+    in
+    [ Fr(~longtermkey) ]
+    -->
+    [ 
+        !Longtermkey($X, ~longtermkey),
+        !Publickey($X, publickey)
+     ]  
+
+rule Publish_Publickey:
+    [ !Publickey($X, publickey) ]
+    -->
+    [ Out(publickey) ]
+
+rule Reveal_Longtermkey:
+    [ !Longtermkey($X, longtermkey) ]
+    --[ RevealLongtermkey($X) ]->
+    [ Out(longtermkey) ]
+
+rule Initiator_FirstStep:
+    let
+        firstMessage = aenc(<'1',~nonceInitiator,$Initiator>,publickeyResponder)
+    in
+    [ 
+        !Publickey($Responder, publickeyResponder),
+        Fr(~nonceInitiator)
+     ]
+    --[ Out_Initiator_FirstStep(firstMessage) ]->
+    [ 
+        Out(firstMessage),
+        State_Initiator_First($Initiator,$Responder,~nonceInitiator)
+     ]
+
+rule Responder_FirstStep:
+    let
+        publickeyResponder = pk(longtermkeyResponder)
+        firstMessage = <'1',nonceInitiator, Initiator>
+        firstMessageEncrypted = aenc(firstMessage, publickeyResponder)
+        secondMessage = <'2',nonceInitiator, ~nonceResponder, $Responder>
+        secondMessageEncrypted = aenc(secondMessage, publickeyInitiators)
+    in
+    [ 
+        In(firstMessageEncrypted),
+        !Longtermkey($Responder,longtermkeyResponder),
+        !Publickey(Initiator,publickeyInitiator),
+        Fr(~nonceResponder)
+     ]
+    --[ 
+        In_Responder_First_NonceInitiator(nonceInitiator, firstMessage),
+        Out_Responder_First(secondMessage),
+        Running(Initiator, $Responder, <'INIT',nonceInitiator,~nonceResponder>)
+     ]->
+    [ 
+        Out(secondMessage),
+        State_Responder_First($Responder,Initiator,nonceInitiator,~nonceResponder)
+     ]
+
+rule Initiator_SecondStep:
+    let
+        publickeyInitiator = pk(longtermkeyInitiator)
+        secondMessage = <'2', nonceInitiator, nonceResponder, Responder>
+        secondMessageEncrypted = aenc(secondMessage, publickeyInitiator)
+        thirdMessage = <'3', nonceResponder>
+        thirdMessageEncrypted = aenc(thirdMessage, publickeyResponder)
+    in
+    [ 
+        State_Initiator_First(Initiator, Responder, nonceInitiator),
+        !Longtermkey(Initiator, longtermkeyInitiator),
+        !Publickey(Responder, publickeyResponder),
+        In(secondMessageEncrypted)
+     ]
+    --[ 
+        In_Initiator_Second_NonceResponder(nonceResponder, secondMessage),
+        Commit(Initiator,Responder, <'INIT',nonceInitiator,nonceResponder>),
+        Running(Responder, Initiator, <'RESP', nonceInitiator, nonceResponder>)
+     ]->
+    [ 
+        Out(thirdMessage),
+        Secret(Initiator,Responder,nonceResponder),
+        Secret(Initiator,Responder,nonceInitiator)
+     ]
+
+rule Responder_SecondStep:
+    let
+        publickeyResponder = pk(longtermkeyResponder)
+        thirdMessage = <'3',nonceResponder>
+        thirdMessageEncrypted = aenc(thirdMessage, publickeyResponder)
+    in
+    [ 
+        State_Responder_First(Responder,Initiator,nonceInitiator,nonceResponder),
+        !Longtermkey(Responder, longtermkeyResponder),
+        In(thirdMessageEncrypted)
+     ]
+    --[ Commit(Responder,Initiator,<'RESP',nonceInitiator, nonceResponder>) ]->
+    [ 
+        Secret(Responder,Initiator,nonceResponder),
+        Secret(Responder,Initiator,nonceInitiator)
+     ]
+    
+rule Secrecy_Claim:
+    [ Secret(A,B,message) ]
+    --[ Secret(A,B,message) ]->
+    [  ]
+
+lemma nonce_secrecy:
+"
+     not(Ex A B m #i .
+        Secret(A,B,m)@i &
+        (Ex #j . K(m)@j) &
+        not (Ex #r . RevealLongtermkey(A)@r) &
+        not (Ex #r . RevealLongtermkey(B)@r)
+        )
+"
+end
