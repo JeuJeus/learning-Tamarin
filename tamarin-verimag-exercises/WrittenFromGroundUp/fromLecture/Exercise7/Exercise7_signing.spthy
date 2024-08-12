@@ -1,0 +1,84 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise7_signing.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: 
+ *      found on p.146/256 "Injective vs Non-injective Agreement"
+ *      1. Initiator -> Responder: {Initiator,Responder}sk(Initiator) //this is signing,
+ *      //so you should use "builtins: signing"
+ */
+
+theory Exercise7_signing
+begin
+
+builtins: signing
+
+rule Establish_SigningKey:
+    let
+        publicVerificationKey = pk(~privateSigningkey)
+    in
+    [ Fr(~privateSigningkey) ]
+    --[  ]->
+    [ 
+        !PrivateSigningKey($X, ~privateSigningkey),
+        !PublicVerificationKey($X, publicVerificationKey),
+        Out(publicVerificationKey)
+     ]
+
+rule Leak_PrivateSigningkey:
+    [ 
+        !PrivateSigningKey($X, privateSigningkey)
+     ]
+    --[ 
+        Reveal($X)
+     ]->
+    [ Out(privateSigningkey) ]
+
+
+rule Initiator_SingAndSendBothParticipants:
+    let
+        signedMessage = sign(<$Initiator,$Responder>, privateSigningkeyInitiator)
+    in
+    [ 
+        !PrivateSigningKey($Initiator,privateSigningkeyInitiator),
+        !PublicVerificationKey($Responder, publicVerificationKeyResponder)
+     ]
+    --[ Running($Responder,signedMessage) ]->
+    [ Out(signedMessage) ]
+
+rule Responder_ReceiveMessage:
+    [ 
+        In(signedMessage),
+        !PublicVerificationKey($Initiator,publicVerificationKeyInitiator),
+        !PublicVerificationKey($Responder,publicVerificationKeyResponder)
+    ]
+    --[ 
+        Eq(verify(signedMessage,<$Initiator,$Responder>,publicVerificationKeyInitiator),true),
+        Commit($Initiator, signedMessage) 
+    ]->
+    [  ]
+
+
+restriction EqualityOfSigning:
+    "
+        All x y #i. 
+            Eq(x,y)@i 
+                ==> 
+                    x=y
+    "    
+
+lemma executable:
+exists-trace
+"
+    All I message #i . 
+        Commit(I, message)@i 
+            ==> 
+                Ex R #j . 
+                    Running(R, message)@j & 
+                    #j<#i
+"
+
+
+end
