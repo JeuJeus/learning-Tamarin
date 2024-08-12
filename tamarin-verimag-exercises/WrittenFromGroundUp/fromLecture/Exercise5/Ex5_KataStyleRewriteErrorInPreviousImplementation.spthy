@@ -75,11 +75,11 @@ rule Responder_ReceiveNonce:
 
 rule Initiator_ReceiveNonce:
     [ 
-        Initiator_State(A, 'SENT_NONCE', B, <~nonceA>),
+        Initiator_State($A, 'SENT_NONCE', $B, <~nonceA>),
         In(nonceAFromB)
      ]
     --[ 
-        Commit(B)
+        Commit($B)
      ]->
     [  ]
 

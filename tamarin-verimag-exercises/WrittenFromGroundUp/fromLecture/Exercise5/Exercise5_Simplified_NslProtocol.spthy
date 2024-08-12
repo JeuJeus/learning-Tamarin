@@ -56,7 +56,7 @@ rule Responder_ReceiveNonce:
     --[ 
         ReceivedMessage(messageFromA),
         Running($A),
-        ProtocolRunWith($A,$B)
+        ProtocolRunWith($A,$B, decryptedNonceFromA)
      ]->
     [ 
         Out(decryptedNonceFromA)
@@ -70,14 +70,14 @@ rule Initiator_ReceiveNonce:
     --[ 
         ReceivedNonce(nonceAFromB),
         Commit($B),
-        ProtocolRunWith($A,$B)
+        ProtocolRunWith($A,$B,nonceAFromB)
      ]->
     [  ]     
 
 lemma Executable:
 exists-trace    
 "
-    All B #j . Commit(B)@j ==> Ex A #i . Running(A)@i 
+    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & i<j
 "
 
 lemma messageReceivedByBIsFromAOrAdversary [sources]:
@@ -94,17 +94,13 @@ lemma messageReceivedByBIsFromAOrAdversary [sources]:
 //then b has previously been running the protocol.
 lemma Aliveness:
 "
-    All A B nonceA #j .
-    Commit(B)@j &
-    ReceivedNonce(nonceA)@j &
-    ProtocolRunWith(A,B)@j
-        ==>
-            Ex A message #i . 
+    All B A nonce#j . 
+        Commit(B)@j &
+        ProtocolRunWith(A,B,nonce)@j
+            ==> Ex #i . 
                 Running(A)@i &
-                ReceivedMessage(message)@i &
-                ProtocolRunWith(A,B)@i &
-                i<j //this will not work due to attacker hijacking session establishment, 
-                //there is no security due to lack of state in protocol partners / exchange
+                ProtocolRunWith(A,B,nonce)@i &
+                i<j
 "
 
 end
