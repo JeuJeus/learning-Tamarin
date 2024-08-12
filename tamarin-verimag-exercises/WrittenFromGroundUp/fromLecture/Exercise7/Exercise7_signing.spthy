@@ -96,4 +96,28 @@ lemma nonInjectiveAgreement:
                 (Ex C #r. Reveal(C)@r & Honest(C)@i)
 "
 
+/*A protocol guarantees to an agent a in role A 
+injective agreement with an agent b in role B on a message t if, 
+whenever a completes a run of the protocol, apparently with b in role B, 
+then b has previously been running the protocol, apparently with a, 
+and b was acting in role B in his run, and the two principals agreed on the message t. 
+Additionally, there is a unique matching partner instance for each completed run of an
+agent, i.e., for each Commit by an agent there is a unique Running by the supposed partner. */
+lemma injectiveAgreement: //this does not hold, potentially several sessions for Responder R talking to Initiator I can be matched by same session of I
+    "All I message #i.
+        Commit(I,message)@i
+            ==> 
+                (Ex R #j. 
+                    Running(R,message)@j & 
+                    #j<#i & 
+                    not (
+                        Ex otherI #otherI . 
+                            Commit(otherI,message)@otherI &
+                            not(#otherI=#i)
+                    )
+                ) | 
+                (Ex C #r. 
+                    Reveal(C)@r & 
+                    Honest(C)@i)"
+
 end
