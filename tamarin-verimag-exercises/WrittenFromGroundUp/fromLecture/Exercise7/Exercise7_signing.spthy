@@ -56,7 +56,9 @@ rule Responder_ReceiveMessage:
     ]
     --[ 
         Eq(verify(signedMessage,<$Initiator,$Responder>,publicVerificationKeyInitiator),true),
-        Commit($Initiator, signedMessage) 
+        Commit($Initiator, signedMessage),
+        Honest($Initiator),
+        Honest($Responder)
     ]->
     [  ]
 
@@ -80,5 +82,18 @@ exists-trace
                     #j<#i
 "
 
+/*A protocol guarantees to an agent a in role A 
+non-injective agreement with an agent b in role B on a message t if, 
+whenever a completes a run of the protocol, apparently with b in role B, 
+then b has previously been running the protocol, apparently with a, 
+and b was acting in role B in his run, and the two principals agreed on the message t. */
+lemma nonInjectiveAgreement:
+"
+    All I message #i.
+        Commit(I,message)@i
+            ==> 
+                (Ex R #j. Running(R,message)@j) | 
+                (Ex C #r. Reveal(C)@r & Honest(C)@i)
+"
 
 end
