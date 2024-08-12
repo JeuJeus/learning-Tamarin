@@ -40,6 +40,7 @@ rule Initiator_SendEncryptedNonce:
         !Publickey($B, publickeyB) 
     ]
     --[ 
+        SendMessage($A,$B, message)
      ]->
     [ 
         !StateA($A,$B, ~nonceA),
@@ -58,7 +59,9 @@ rule Responder_ReceiveNonce:
         !Publickey($A, publickeyA)
      ]
     --[ 
+        Eq(messageReceived,<$A, aenc(decryptedNonce,publickeyB)>),
         Running($A),
+        ReceivedMessage($A,$B,messageReceived),
         ProtocolRunWith($A,$B,decryptedNonce)
      ]->
     [ 
@@ -87,12 +90,30 @@ exists-trace
     All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & #i<#j
 "
 
+lemma originOfNonce [sources]:
+"
+    All A B message nonce #i . 
+        ReceivedMessage(A,B,message)@i &
+        ProtocolRunWith(A,B,nonce)@i
+        ==> 
+            (Ex #j . SendMessage(A,B,message)@j & #j<#i)|
+            (Ex #j . K(nonce)@j & #j<#i) |
+            (Ex #j . K(message)@j & #j<#i)
+"
+
+restriction Equality:
+"
+    All x y #i. Eq(x,y)@i ==> x=y
+"
+
+
 //A protocol guarantees 
 //to an agent a in role A aliveness of another agent b if,
 // whenever a completes a run of the protocol, 
 //apparently with b in role B, 
 //then b has previously been running the protocol.
 lemma Aliveness:
+exists-trace
 "
     All B A nonce#j . 
         Commit(B)@j &
