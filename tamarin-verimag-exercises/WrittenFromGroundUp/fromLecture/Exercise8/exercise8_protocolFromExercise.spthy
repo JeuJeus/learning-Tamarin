@@ -1,0 +1,132 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise8_protocolFromExercise.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: 
+ *  1. A → B : {| ⟨A, Na⟩ |}pk(B)
+ *  2. B → A : ⟨{| ⟨A, K⟩ |}pk(A), {[Na}]K⟩
+ *  3. A → B : {| ⟨⟨A, B⟩, K⟩ |}pk(B)
+ */
+
+theory exercise8_protocolFromExercise
+begin
+
+builtins: symmetric-encryption, asymmetric-encryption
+
+
+rule Register_Publickey:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ 
+        Fr(~privatekey)
+     ]
+    --[  ]->
+    [ 
+        !Privatekey($X,~privatekey),
+        !Publickey($X, publickey),
+        Out(publickey)
+     ]
+
+rule Reveal_Privatekey:
+    [ !Privatekey($X,privatekey) ]
+    --[ Reveal($X) ]->
+    [ Out(privatekey) ]
+
+rule A_initiateProtocolToB:
+    let
+        message = <'1',$A,~nonceA>
+        messageEncrypted = aenc(message, publickeyB)
+    in
+    [ 
+        !Privatekey($A,privatekeyA),
+        !Publickey($B, publickeyB),
+        Fr(~nonceA)
+     ]
+    --[ InitializedProtocol($A,$B,~nonceA) ]->
+    [ 
+        State_A($A,$B,~nonceA),
+        Out(messageEncrypted)
+     ]
+
+rule B_RespondToInitFromA:
+    let
+        decryptedMessage = adec(encryptedMessageFromA, privatekeyB)
+        aFromMessage = fst(snd(decryptedMessage))
+        nonceAFromMessage = snd(snd(decryptedMessage))
+        secondMessage = <'2',aFromMessage,~symmetricEncryptionKey>
+        secondMessageEncrypted = aenc(secondMessage, publickeyA)
+        thirdMessage = <'3', nonceAFromMessage>
+        thirdMessageEncrypted = senc(thirdMessage, ~symmetricEncryptionKey)
+    in
+    [ 
+        In(encryptedMessageFromA),
+        !Publickey(aFromMessage,publickeyA),
+        !Privatekey($B, privatekeyB),
+        Fr(~symmetricEncryptionKey)
+    ]
+    --[ 
+        ReceivedInitializationMessage(aFromMessage,$B,nonceAFromMessage),
+        SetupSymmetricKey(aFromMessage,$B,~symmetricEncryptionKey)
+     ]->
+    [ 
+        State_B(aFromMessage,$B,nonceAFromMessage,~symmetricEncryptionKey),
+        Out(secondMessageEncrypted),
+        Out(thirdMessageEncrypted)
+     ]
+
+rule A_ReceiveAssymetricAndSymmetricEncryptedMessages:
+    let
+        secondMessageDecrypted = adec(secondMessageEncryptedFromB,privatekeyA)  
+        symmetricDecryptionKeyFromMessage = snd(snd(secondMessageDecrypted))
+        symmetricKey = symmetricDecryptionKeyFromMessage
+        thirdMessageDecrypted = sdec(thirdMessageEncryptedFromB, symmetricKey)
+        nonceAFromMessage = snd(thirdMessageDecrypted)
+        fourthMessage = <'4',$A,$B,symmetricKey>
+        fourthMessageEncrypted = senc(fourthMessage,symmetricKey)
+    in
+    [ 
+        State_A($A,$B,nonceAFromMessage),
+        In(secondMessageEncryptedFromB),
+        In(thirdMessageEncryptedFromB),
+        !Privatekey($A,privatekeyA),
+        !Publickey($B,publickeyB)
+     ]
+    --[ 
+        ExtractedSymmetricKey($A,$B,symmetricKey)
+     ]->
+    [ 
+        State_A_2($A,$B,nonceAFromMessage,symmetricKey),
+        Out(fourthMessageEncrypted)
+    ]
+
+rule B_ReceiveSymmetricEncryptionKeyInResponse:
+    let
+        fourthMessageDecrypted = adec(fourthMessageEncryptedFromA,privatekeyB)    
+        aFromMessage = fst(snd(fourthMessageDecrypted))
+        bFromMessage = fst(snd(snd(fourthMessageDecrypted)))
+        symmetricKeyFromResponse = fst(snd(snd(snd(fourthMessageDecrypted))))
+    in
+    [ 
+        State_B(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse),
+        In(fourthMessageEncryptedFromA),
+        !Privatekey(bFromMessage,privatekeyB),
+        !Publickey(aFromMessage,publickeyA)
+     ]
+    --[ 
+        FinishedExchange(aFromMessage,bFromMessage,symmetricKeyFromResponse)
+     ]->
+    [  ]
+
+lemma executable:
+exists-trace
+"
+     All A B nonceA #i .
+        InitializedProtocol(A,B,nonceA)@i
+            ==>
+                Ex symmetricKey #j .
+                    FinishedExchange(A,B,symmetricKey)@j
+"
+end
