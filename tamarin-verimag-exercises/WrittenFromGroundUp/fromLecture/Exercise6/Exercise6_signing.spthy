@@ -1,0 +1,88 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise6_signing.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ *  1. A -> B: {B}sk(A) //this is signing,
+ *  2. A <- B: {A}sk(B) //so you should use "builtins: signing"
+ *
+ */
+
+theory Exercise6_signing
+begin
+
+builtins: signing
+
+rule Establish_SigningKey:
+    let
+        publicVerificationKey = pk(~privateSigningkey)
+    in
+    [ Fr(~privateSigningkey) ]
+    --[  ]->
+    [ 
+        !PrivateSigningKey($X, ~privateSigningkey),
+        !PublicVerificationKey($X, publicVerificationKey),
+        Out(~privateSigningkey)
+     ]
+
+rule A_SignAndSendToB:
+    let
+        signedPartner = sign($B, privateSigningkeyA)  
+    in
+    [ 
+        !PrivateSigningKey($A, privateSigningkeyA),
+        !PublicVerificationKey($B,publicVerificationKeyB)
+     ]
+    --[ StartExchange($A,$B) ]->
+    [ 
+        State_A($A,$B),
+        Out(signedPartner)
+     ]
+
+rule B_ReceiveSignAndSendBack:
+    let
+        signedPartnerOut = sign($A, privateSigningkeyB)
+
+    in
+    [ 
+        In(signedPartnerMessage),
+        !PrivateSigningKey($B, privateSigningkeyB),
+        !PublicVerificationKey($B,publicVerificationKeyB),
+        !PublicVerificationKey($A,publicVerificationKeyA)
+     ]
+    --[ 
+        Eq(verify(signedPartnerMessage,$B, publicVerificationKeyB),true),
+        ReceivedSignedMessage($A,$B)
+     ]->
+    [ Out(signedPartnerOut) ]
+
+rule A_ReceiveSignedPartner:
+    [ 
+        In(signedPartnerMessage),
+        !PublicVerificationKey($A,publicVerificationKeyA) ]
+    --[ 
+        Eq(verify(signedPartnerMessage,$A,publicVerificationKeyA),true),
+        FinishedExchange($A,$B)
+    ]->
+    [  ]
+
+restriction EqualityOfSigning:
+    "
+        All x y #i. 
+            Eq(x,y)@i 
+                ==> 
+                    x=y
+    "
+
+lemma executable:
+exists-trace
+"
+    All A B #i . FinishedExchange(A,B)@i 
+        ==> Ex #j . 
+            StartExchange(A,B)@j & 
+            #j<#i
+"
+
+end
