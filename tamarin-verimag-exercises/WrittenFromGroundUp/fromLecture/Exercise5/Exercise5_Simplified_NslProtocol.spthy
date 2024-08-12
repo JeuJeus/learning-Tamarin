@@ -4,7 +4,9 @@
  *  Model Name: Exercise5_Simplified_NslProtocol.spthy
  *  Status: DEVELOPMENTAL
  *
- *  Comments: Essentially a simplified version of NSL_Protocol
+ *  Comments:
+ *  1. A -> B: A,{na}pk(B) //this is asymmetric encryption,
+ *  2. A <- B: na //so you should use "builtins: asymmetric-encryption"
  */
 
 theory Exercise5_Simplified_NslProtocol
@@ -12,80 +14,98 @@ begin
 
 builtins: asymmetric-encryption
 
-//PKI
 rule Register_Publickey:
     let
-        publickey = pk(~longtermkey)
+        publickey = pk(~privatekey)
     in
-    [ Fr(~longtermkey) ]
+    [ 
+        Fr(~privatekey)
+     ]
     --[  ]->
     [ 
-        !Longtermkey($X, ~longtermkey),
-        !Publickey($X, publickey)
+        !Privatekey($X,~privatekey),
+        !Publickey($X, publickey),
+        Out(publickey)
      ]
 
-rule Publish_Publickey:
-    [ !Publickey($X, publickey) ]
-    -->
-    [ Out(publickey) ]
 
-//Protocol
-rule Initiator_SendNonce:
+rule Initiator_SendEncryptedNonce:
     let
-        messageToB = <$A, aenc(~nonceA, publickeyB)>
+        encryptedNonce = aenc(~nonceA, publickeyB)
+        message = <$A, encryptedNonce>
     in
     [ 
-        !Publickey($B, publickeyB),
-        Fr(~nonceA)
-     ]
-    --[ SentMessage(messageToB) ]->
+        Fr(~nonceA),
+        !Privatekey($A, privatekey),
+        !Publickey($B, publickeyB) 
+    ]
+    --[ 
+        SendMessage($A,$B, message)
+     ]->
     [ 
-        Out(messageToB)
+        !StateA($A,$B, ~nonceA),
+        Out(message)
      ]
-    
+
 rule Responder_ReceiveNonce:
     let
-        messageFromA = <$A, encryptedNonceFromA>
-        decryptedNonceFromA = adec(encryptedNonceFromA, longtermkeyB)
+        decryptedNonce = adec(snd(messageReceived),privatekeyB)
+        messageSent = decryptedNonce
     in
     [ 
-        !Publickey($A, publickeyA),
-        !Longtermkey($B, longtermkeyB),
-        In(messageFromA)
-     ]
-    --[ 
-        ReceivedMessage(messageFromA),
-        Running($A),
-        ProtocolRunWith($A,$B, decryptedNonceFromA)
-     ]->
-    [ 
-        Out(decryptedNonceFromA)
-     ]
-
-rule Initiator_ReceiveNonce:
-    [ 
+        In(messageReceived),
+        !Privatekey($B, privatekeyB),
         !Publickey($B, publickeyB),
-        In(nonceAFromB)
+        !Publickey($A, publickeyA)
      ]
     --[ 
-        ReceivedNonce(nonceAFromB),
-        Commit($B),
-        ProtocolRunWith($A,$B,nonceAFromB)
+        Eq(messageReceived,<$A, aenc(decryptedNonce,publickeyB)>),
+        Running($A),
+        ReceivedMessage($A,$B,messageReceived),
+        ProtocolRunWith($A,$B,decryptedNonce)
      ]->
-    [  ]     
+    [ 
+        Out(decryptedNonce)
+     ]
+     
+rule Initiator_ReceiveNonceBack:
+    let
+        message = nonceA
+    in
+    [ 
+        In(message),
+        !StateA($A,$B, nonceA),
+        !Publickey($A,publickeyA),
+        !Publickey($B, publickeyB)
+    ]
+    --[ 
+        Commit($B), 
+        ProtocolRunFinishedWith($A,$B, nonceA)
+     ]->
+    [ ]
 
-lemma Executable:
-exists-trace    
+lemma executable:
+exists-trace
 "
-    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & i<j
+    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & #i<#j
 "
 
-lemma messageReceivedByBIsFromAOrAdversary [sources]:
+lemma originOfNonce [sources]:
 "
-    All message #i . ReceivedMessage(message)@i ==> 
-        (Ex #j . SentMessage(message)@j) |
-        (Ex #k . K(message)@k)
+    All A B message nonce #i . 
+        ReceivedMessage(A,B,message)@i &
+        ProtocolRunWith(A,B,nonce)@i
+        ==> 
+            (Ex #j . SendMessage(A,B,message)@j & #j<#i)|
+            (Ex #j . K(nonce)@j & #j<#i) |
+            (Ex #j . K(message)@j & #j<#i)
 "
+
+restriction Equality:
+"
+    All x y #i. Eq(x,y)@i ==> x=y
+"
+
 
 //A protocol guarantees 
 //to an agent a in role A aliveness of another agent b if,
@@ -93,14 +113,15 @@ lemma messageReceivedByBIsFromAOrAdversary [sources]:
 //apparently with b in role B, 
 //then b has previously been running the protocol.
 lemma Aliveness:
+exists-trace
 "
     All B A nonce#j . 
         Commit(B)@j &
-        ProtocolRunWith(A,B,nonce)@j
+        ProtocolRunFinishedWith(A,B,nonce)@j
             ==> Ex #i . 
                 Running(A)@i &
                 ProtocolRunWith(A,B,nonce)@i &
-                i<j
+                #i<#j
 "
 
 end
