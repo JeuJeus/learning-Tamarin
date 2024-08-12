@@ -48,8 +48,7 @@ rule Initiator_SendEncryptedNonce:
 
 rule Responder_ReceiveNonce:
     let
-        messageReceived = <$A, encryptedNonce>
-        decryptedNonce = adec(encryptedNonce,privatekeyB)
+        decryptedNonce = adec(snd(messageReceived),privatekeyB)
         messageSent = decryptedNonce
     in
     [ 
@@ -63,7 +62,7 @@ rule Responder_ReceiveNonce:
         ProtocolRunWith($A,$B,decryptedNonce)
      ]->
     [ 
-        Out(messageSent)
+        Out(decryptedNonce)
      ]
      
 rule Initiator_ReceiveNonceBack:
