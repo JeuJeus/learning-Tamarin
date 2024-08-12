@@ -24,8 +24,17 @@ rule Establish_SigningKey:
     [ 
         !PrivateSigningKey($X, ~privateSigningkey),
         !PublicVerificationKey($X, publicVerificationKey),
-        Out(~privateSigningkey)
+        Out(publicVerificationKey)
      ]
+
+rule Leak_PrivateSigningkey:
+    [ 
+        !PrivateSigningKey($X, privateSigningkey)
+     ]
+    --[ 
+        Reveal($X)
+     ]->
+    [ Out(privateSigningkey) ]
 
 rule A_SignAndSendToB:
     let
@@ -35,7 +44,10 @@ rule A_SignAndSendToB:
         !PrivateSigningKey($A, privateSigningkeyA),
         !PublicVerificationKey($B,publicVerificationKeyB)
      ]
-    --[ StartExchange($A,$B) ]->
+    --[ 
+        StartExchange($A,$B),
+        Neq($A,$B)
+     ]->
     [ 
         State_A($A,$B),
         Out(signedPartner)
@@ -54,7 +66,8 @@ rule B_ReceiveSignAndSendBack:
      ]
     --[ 
         Eq(verify(signedPartnerMessage,$B, publicVerificationKeyB),true),
-        ReceivedSignedMessage($A,$B)
+        ReceivedSignedMessage($A,$B),
+        Neq($A,$B)
      ]->
     [ Out(signedPartnerOut) ]
 
@@ -64,7 +77,10 @@ rule A_ReceiveSignedPartner:
         !PublicVerificationKey($A,publicVerificationKeyA) ]
     --[ 
         Eq(verify(signedPartnerMessage,$A,publicVerificationKeyA),true),
-        FinishedExchange($A,$B)
+        FinishedExchange($A,$B),
+        Neq($A,$B),
+        Honest($A),
+        Honest($B)
     ]->
     [  ]
 
@@ -76,6 +92,9 @@ restriction EqualityOfSigning:
                     x=y
     "
 
+restriction InequalityOfPartners:
+    "All x #i. Neq(x,x) @ #i ==> F"
+
 lemma executable:
 exists-trace
 "
@@ -83,6 +102,21 @@ exists-trace
         ==> Ex #j . 
             StartExchange(A,B)@j & 
             #j<#i
+"
+
+/*A protocol guarantees to an agent a in role A weak agreement with another agent b if, 
+whenever agent a completes a run of the protocol, apparently with b in role B, 
+then b has previously been running the protocol, apparently with a*/
+lemma weakAgreement:
+"
+    All A B #j .
+    FinishedExchange(A,B)@j 
+        ==> 
+            (Ex #i . 
+                ReceivedSignedMessage(A,B)@i) | 
+            (Ex X #r. 
+                Reveal(X)@r & 
+                Honest(X)@j)
 "
 
 end
