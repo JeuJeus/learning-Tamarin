@@ -28,6 +28,11 @@ rule Register_Publickey:
         Out(publickey)
      ]
 
+rule Reveal_Privatekey:
+    [ !Privatekey($X,privatekey) ]
+    --[ Reveal($X) ]->
+    [ Out(privatekey) ]
+
 
 rule Initiator_SendEncryptedNonce:
     let
@@ -80,14 +85,18 @@ rule Initiator_ReceiveNonceBack:
     ]
     --[ 
         Commit($B), 
-        ProtocolRunFinishedWith($A,$B, nonceA)
+        ProtocolRunFinishedWith($A,$B, nonceA),
+        Honest($A),
+        Honest($B)
      ]->
     [ ]
 
 lemma executable:
 exists-trace
 "
-    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & #i<#j
+    All A #i . Running(A)@i ==> 
+        (Ex B #j . Commit(B)@j & #i<#j) &
+        not(Ex X #k . Reveal(X)@k)
 "
 
 lemma originOfNonce [sources]:
@@ -112,7 +121,7 @@ restriction Equality:
 // whenever a completes a run of the protocol, 
 //apparently with b in role B, 
 //then b has previously been running the protocol.
-lemma Aliveness:
+lemma aliveness:
 exists-trace
 "
     All B A nonce#j . 
@@ -122,6 +131,23 @@ exists-trace
                 Running(A)@i &
                 ProtocolRunWith(A,B,nonce)@i &
                 #i<#j
+"
+//this does not hold
+//whilst A thinks to be talking to B, 
+//B did not necessarily execute a sesssion of the protocol w/ B
+lemma weakAgreement: 
+"
+    All A B nonce #j.
+        Commit(B)@j &
+        ProtocolRunFinishedWith(A,B,nonce)@j
+            ==> 
+                (Ex #i. 
+                    Running(A)@i &
+                    ProtocolRunWith(A,B,nonce)@i
+                    ) | 
+                (Ex X #r. 
+                    Reveal(X)@r & 
+                    Honest(X)@j)
 "
 
 end
