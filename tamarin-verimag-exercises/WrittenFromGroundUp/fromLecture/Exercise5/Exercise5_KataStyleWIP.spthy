@@ -48,7 +48,6 @@ rule Initiator_SendEncryptedNonce:
 
 rule Responder_ReceiveNonce:
     let
-        encryptedNonce = aenc($nonceA, publickeyB)
         messageReceived = <$A, encryptedNonce>
         decryptedNonce = adec(encryptedNonce,privatekeyB)
         messageSent = decryptedNonce
@@ -60,7 +59,8 @@ rule Responder_ReceiveNonce:
         !Publickey($A, publickeyA)
      ]
     --[ 
-        Running($A)
+        Running($A),
+        ProtocolRunWith($A,$B,decryptedNonce)
      ]->
     [ 
         Out(messageSent)
@@ -77,7 +77,8 @@ rule Initiator_ReceiveNonceBack:
         !Publickey($B, publickeyB)
     ]
     --[ 
-        Commit($B)
+        Commit($B), 
+        ProtocolRunFinishedWith($A,$B, nonceA)
      ]->
     [ ]
 
@@ -86,4 +87,21 @@ exists-trace
 "
     All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & #i<#j
 "
+
+//A protocol guarantees 
+//to an agent a in role A aliveness of another agent b if,
+// whenever a completes a run of the protocol, 
+//apparently with b in role B, 
+//then b has previously been running the protocol.
+lemma Aliveness:
+"
+    All B A nonce#j . 
+        Commit(B)@j &
+        ProtocolRunFinishedWith(A,B,nonce)@j
+            ==> Ex #i . 
+                Running(A)@i &
+                ProtocolRunWith(A,B,nonce)@i &
+                #i<#j
+"
+
 end
