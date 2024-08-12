@@ -1,0 +1,89 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise5_KataStyleWIP.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ *  1. A -> B: A,{na}pk(B) //this is asymmetric encryption,
+ *  2. A <- B: na //so you should use "builtins: asymmetric-encryption"
+ */
+
+theory Exercise5_KataStyleWIP
+begin
+
+builtins: asymmetric-encryption
+
+rule Register_Publickey:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ 
+        Fr(~privatekey)
+     ]
+    --[  ]->
+    [ 
+        !Privatekey($X,~privatekey),
+        !Publickey($X, publickey),
+        Out(publickey)
+     ]
+
+
+rule Initiator_SendEncryptedNonce:
+    let
+        encryptedNonce = aenc(~nonceA, publickeyB)
+        message = <$A, encryptedNonce>
+    in
+    [ 
+        Fr(~nonceA),
+        !Privatekey($A, privatekey),
+        !Publickey($B, publickeyB) 
+    ]
+    --[ 
+     ]->
+    [ 
+        !StateA($A,$B, ~nonceA),
+        Out(message)
+     ]
+
+rule Responder_ReceiveNonce:
+    let
+        encryptedNonce = aenc($nonceA, publickeyB)
+        messageReceived = <$A, encryptedNonce>
+        decryptedNonce = adec(encryptedNonce,privatekeyB)
+        messageSent = decryptedNonce
+    in
+    [ 
+        In(messageReceived),
+        !Privatekey($B, privatekeyB),
+        !Publickey($B, publickeyB),
+        !Publickey($A, publickeyA)
+     ]
+    --[ 
+        Running($A)
+     ]->
+    [ 
+        Out(messageSent)
+     ]
+     
+rule Initiator_ReceiveNonceBack:
+    let
+        message = nonceA
+    in
+    [ 
+        In(message),
+        !StateA($A,$B, nonceA),
+        !Publickey($A,publickeyA),
+        !Publickey($B, publickeyB)
+    ]
+    --[ 
+        Commit($B)
+     ]->
+    [ ]
+
+lemma executable:
+exists-trace
+"
+    All A #i . Running(A)@i ==> Ex B #j . Commit(B)@j & #i<#j
+"
+end
