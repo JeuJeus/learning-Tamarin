@@ -124,7 +124,7 @@ non-injective agreement with an agent b in role B on a message t if,
 whenever a completes a run of the protocol, apparently with b in role B, 
 then b has previously been running the protocol, apparently with a, 
 and b was acting in role B in his run, and the two principals agreed on the message t. */
-lemma noninjectiveAgreement:
+lemma nonInjectiveAgreement:
 "
     All A B signedPartner #i.
         FinishedExchange(A,B,signedPartner)@i
