@@ -129,4 +129,27 @@ exists-trace
                 Ex symmetricKey #j .
                     FinishedExchange(A,B,symmetricKey)@j
 "
+
+lemma secrecy_nonceA:
+"
+    not(
+        Ex A B nonceA #i #j.
+        ReceivedInitializationMessage(A,B,nonceA)@i &
+        K(nonceA)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+lemma secrecy_SymmetricKey:
+"
+    not(
+        Ex A B symmetricKey #i #j.
+        ExtractedSymmetricKey(A,B,symmetricKey)@i &
+        K(symmetricKey)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
 end
