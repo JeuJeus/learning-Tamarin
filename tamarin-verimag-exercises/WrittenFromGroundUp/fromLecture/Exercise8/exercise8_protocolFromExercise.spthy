@@ -23,7 +23,7 @@ rule Register_Publickey:
     [ 
         Fr(~privatekey)
      ]
-    --[  ]->
+    -->
     [ 
         !Privatekey($X,~privatekey),
         !Publickey($X, publickey),
@@ -47,76 +47,127 @@ rule A_initiateProtocolToB:
      ]
     --[ InitializedProtocol($A,$B,~nonceA) ]->
     [ 
-        State_A($A,$B,~nonceA),
+        State_A_first($A,$B,~nonceA),
         Out(messageEncrypted)
      ]
 
-rule B_RespondToInitFromA:
+rule B_ReceiveInitFromA:
     let
         decryptedMessage = adec(encryptedMessageFromA, privatekeyB)
-        aFromMessage = fst(snd(decryptedMessage))
-        nonceAFromMessage = snd(snd(decryptedMessage))
-        secondMessage = <'2',aFromMessage,~symmetricEncryptionKey>
-        secondMessageEncrypted = aenc(secondMessage, publickeyA)
-        thirdMessage = <'3', nonceAFromMessage>
-        thirdMessageEncrypted = senc(thirdMessage, ~symmetricEncryptionKey)
     in
     [ 
         In(encryptedMessageFromA),
-        !Publickey(aFromMessage,publickeyA),
-        !Privatekey($B, privatekeyB),
-        Fr(~symmetricEncryptionKey)
+        !Privatekey($B, privatekeyB)
     ]
-    --[ 
-        ReceivedInitializationMessage(aFromMessage,$B,nonceAFromMessage),
-        SetupSymmetricKey(aFromMessage,$B,~symmetricEncryptionKey)
-     ]->
+    -->
     [ 
-        State_B(aFromMessage,$B,nonceAFromMessage,~symmetricEncryptionKey),
-        Out(secondMessageEncrypted),
-        Out(thirdMessageEncrypted)
+        State_B_first($B,decryptedMessage)
      ]
-
-rule A_ReceiveAssymetricAndSymmetricEncryptedMessages:
+    
+rule B_RespondToInitFromA:
+     let
+         decryptedMessage = <aFromMessage, nonceAFromMessage>
+ 
+         secondMessage = <'2',aFromMessage,~symmetricEncryptionKey>
+         secondMessageEncrypted = aenc(secondMessage, publickeyA)
+ 
+         thirdMessage = <'3', nonceAFromMessage>
+         thirdMessageEncrypted = senc(thirdMessage, ~symmetricEncryptionKey)
+     in
+     [ 
+        State_B_first(B,decryptedMessage), 
+        !Publickey(aFromMessage,publickeyA),
+        Fr(~symmetricEncryptionKey)
+     ]
+     --[ 
+         ReceivedInitializationMessage(aFromMessage,B,nonceAFromMessage),
+         SetupSymmetricKey(aFromMessage,B,~symmetricEncryptionKey)
+      ]->
+     [ 
+         State_B_second(aFromMessage,B,nonceAFromMessage,~symmetricEncryptionKey),
+         Out(secondMessageEncrypted),
+         Out(thirdMessageEncrypted)
+      ]
+      
+rule A_ReceiveAssymetricEncryptedMessages:
     let
         secondMessageDecrypted = adec(secondMessageEncryptedFromB,privatekeyA)  
-        symmetricDecryptionKeyFromMessage = snd(snd(secondMessageDecrypted))
-        symmetricKey = symmetricDecryptionKeyFromMessage
+    in
+    [ 
+        State_A_first(A,B,nonceA),
+        In(secondMessageEncryptedFromB),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
+     ]
+    -->
+    [ 
+        State_A_second(A,B,nonceA,secondMessageDecrypted)
+    ]
+
+rule A_ReceiveSymmetricEncryptedMessages:
+    let
+        secondMessageDecrypted = <'2',A,symmetricKey>
+
         thirdMessageDecrypted = sdec(thirdMessageEncryptedFromB, symmetricKey)
-        nonceAFromMessage = snd(thirdMessageDecrypted)
-        fourthMessage = <'4',$A,$B,symmetricKey>
+    in
+    [ 
+        State_A_second(A,B,nonceA,secondMessageDecrypted),
+        In(thirdMessageEncryptedFromB),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
+     ]
+    --[ 
+        ExtractedSymmetricKey(A,B,symmetricKey)
+     ]->
+    [ 
+        State_A_third(A,B,secondMessageDecrypted,thirdMessageDecrypted)
+    ]
+    
+rule A_RespondToAssymetricAndSymmetricEncryptedMessages:
+    let
+        secondMessageDecrypted = <'2',A,symmetricKey>
+        thirdMessageDecrypted = <'3',nonceA>
+
+        fourthMessage = <'4',A,B,symmetricKey>
         fourthMessageEncrypted = senc(fourthMessage,symmetricKey)
     in
     [ 
-        State_A($A,$B,nonceAFromMessage),
-        In(secondMessageEncryptedFromB),
-        In(thirdMessageEncryptedFromB),
-        !Privatekey($A,privatekeyA),
-        !Publickey($B,publickeyB)
+        State_A_third(A,B,secondMessageDecrypted,thirdMessageDecrypted),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
      ]
-    --[ 
-        ExtractedSymmetricKey($A,$B,symmetricKey)
-     ]->
+    -->
     [ 
-        State_A_2($A,$B,nonceAFromMessage,symmetricKey),
+        State_A_fourth(A,B,nonceA,symmetricKey),
         Out(fourthMessageEncrypted)
     ]
 
 rule B_ReceiveSymmetricEncryptionKeyInResponse:
     let
         fourthMessageDecrypted = adec(fourthMessageEncryptedFromA,privatekeyB)    
-        aFromMessage = fst(snd(fourthMessageDecrypted))
-        bFromMessage = fst(snd(snd(fourthMessageDecrypted)))
-        symmetricKeyFromResponse = fst(snd(snd(snd(fourthMessageDecrypted))))
     in
     [ 
-        State_B(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse),
+        State_B_second(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse),
         In(fourthMessageEncryptedFromA),
         !Privatekey(bFromMessage,privatekeyB),
         !Publickey(aFromMessage,publickeyA)
      ]
+    -->
+    [ State_B_third(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse,fourthMessageDecrypted) ]
+    
+rule B_ParseSymmetricEncryptionKeyInResponse:
+    let
+        fourthMessageDecrypted = <'4',A,B,symmetricKey>
+    in
+    [ 
+        State_B_third(A,B,nonceA,symmetricKey,fourthMessageDecrypted),
+        State_B_third(A,B,nonceA,symmetricKey,fourthMessageDecrypted),
+        In(fourthMessageEncryptedFromA),
+        !Privatekey(A,privatekeyB),
+        !Publickey(B,publickeyA)
+     ]
     --[ 
-        FinishedExchange(aFromMessage,bFromMessage,symmetricKeyFromResponse)
+        FinishedExchange(A,B,symmetricKey)
      ]->
     [  ]
 
