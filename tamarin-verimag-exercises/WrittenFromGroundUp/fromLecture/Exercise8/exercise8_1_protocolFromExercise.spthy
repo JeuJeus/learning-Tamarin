@@ -1,0 +1,245 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise8_1_protocolFromExercise.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: 
+ *  1. A → B : {| ⟨A, Na⟩ |}pk(B)
+ *  2. B → A : ⟨{| ⟨A, K⟩ |}pk(A), {[Na}]K⟩
+ *  3. A → B : {| ⟨⟨A, B⟩, K⟩ |}pk(B)
+ */
+
+theory exercise8_1_protocolFromExercise
+begin
+
+builtins: symmetric-encryption, asymmetric-encryption
+
+
+rule Register_Publickey:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ 
+        Fr(~privatekey)
+     ]
+    -->
+    [ 
+        !Privatekey($X,~privatekey),
+        !Publickey($X, publickey),
+        Out(publickey)
+     ]
+
+rule Reveal_Privatekey:
+    [ !Privatekey($X,privatekey) ]
+    --[ Reveal($X) ]->
+    [ Out(privatekey) ]
+
+rule A_initiateProtocolToB:
+    let
+        message = <'1',$A,~nonceA>
+        messageEncrypted = aenc(message, publickeyB)
+    in
+    [ 
+        !Privatekey($A,privatekeyA),
+        !Publickey($B, publickeyB),
+        Fr(~nonceA)
+     ]
+    --[ InitializedProtocol($A,$B,~nonceA) ]->
+    [ 
+        State_A_first($A,$B,~nonceA),
+        Out(messageEncrypted)
+     ]
+
+rule B_ReceiveInitFromA:
+    let
+        decryptedMessage = adec(encryptedMessageFromA, privatekeyB)
+    in
+    [ 
+        In(encryptedMessageFromA),
+        !Privatekey($B, privatekeyB)
+    ]
+    -->
+    [ 
+        State_B_first($B,decryptedMessage)
+     ]
+    
+rule B_RespondToInitFromA:
+     let
+         decryptedMessage = <aFromMessage, nonceAFromMessage>
+ 
+         secondMessage = <'2',aFromMessage,~symmetricEncryptionKey>
+         secondMessageEncrypted = aenc(secondMessage, publickeyA)
+ 
+         thirdMessage = <'3', nonceAFromMessage>
+         thirdMessageEncrypted = senc(thirdMessage, ~symmetricEncryptionKey)
+     in
+     [ 
+        State_B_first(B,decryptedMessage), 
+        !Publickey(aFromMessage,publickeyA),
+        Fr(~symmetricEncryptionKey)
+     ]
+     --[ 
+         ReceivedInitializationMessage(aFromMessage,B,nonceAFromMessage),
+         SetupSymmetricKey(aFromMessage,B,~symmetricEncryptionKey)
+      ]->
+     [ 
+         State_B_second(aFromMessage,B,nonceAFromMessage,~symmetricEncryptionKey),
+         Out(secondMessageEncrypted),
+         Out(thirdMessageEncrypted)
+      ]
+      
+rule A_ReceiveAssymetricEncryptedMessages:
+    let
+        secondMessageDecrypted = adec(secondMessageEncryptedFromB,privatekeyA)  
+    in
+    [ 
+        State_A_first(A,B,nonceA),
+        In(secondMessageEncryptedFromB),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
+     ]
+    -->
+    [ 
+        State_A_second(A,B,nonceA,secondMessageDecrypted)
+    ]
+
+rule A_ReceiveSymmetricEncryptedMessages:
+    let
+        secondMessageDecrypted = <'2',A,symmetricKey>
+
+        thirdMessageDecrypted = sdec(thirdMessageEncryptedFromB, symmetricKey)
+    in
+    [ 
+        State_A_second(A,B,nonceA,secondMessageDecrypted),
+        In(thirdMessageEncryptedFromB),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
+     ]
+    --[ 
+        ExtractedSymmetricKey(A,B,symmetricKey)
+     ]->
+    [ 
+        State_A_third(A,B,secondMessageDecrypted,thirdMessageDecrypted)
+    ]
+    
+rule A_RespondToAssymetricAndSymmetricEncryptedMessages:
+    let
+        secondMessageDecrypted = <'2',A,symmetricKey>
+        thirdMessageDecrypted = <'3',nonceA>
+
+        fourthMessage = <'4',A,B,symmetricKey>
+        fourthMessageEncrypted = senc(fourthMessage,symmetricKey)
+    in
+    [ 
+        State_A_third(A,B,secondMessageDecrypted,thirdMessageDecrypted),
+        !Privatekey(A,privatekeyA),
+        !Publickey(B,publickeyB)
+     ]
+    -->
+    [ 
+        State_A_fourth(A,B,nonceA,symmetricKey),
+        Out(fourthMessageEncrypted)
+    ]
+
+rule B_ReceiveSymmetricEncryptionKeyInResponse:
+    let
+        fourthMessageDecrypted = adec(fourthMessageEncryptedFromA,privatekeyB)    
+    in
+    [ 
+        State_B_second(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse),
+        In(fourthMessageEncryptedFromA),
+        !Privatekey(bFromMessage,privatekeyB),
+        !Publickey(aFromMessage,publickeyA)
+     ]
+    -->
+    [ State_B_third(aFromMessage,bFromMessage,nonceA,symmetricKeyFromResponse,fourthMessageDecrypted) ]
+    
+rule B_ParseSymmetricEncryptionKeyInResponse:
+    let
+        fourthMessageDecrypted = <'4',A,B,symmetricKey>
+    in
+    [ 
+        State_B_third(A,B,nonceA,symmetricKey,fourthMessageDecrypted),
+        State_B_third(A,B,nonceA,symmetricKey,fourthMessageDecrypted),
+        In(fourthMessageEncryptedFromA),
+        !Privatekey(A,privatekeyB),
+        !Publickey(B,publickeyA)
+     ]
+    --[ 
+        Honest(A),
+        Honest(B),
+        FinishedExchange(A,B,symmetricKey)
+     ]->
+    [  ]
+
+lemma executable:
+exists-trace
+"
+     All A B nonceA #i .
+        InitializedProtocol(A,B,nonceA)@i
+            ==>
+                Ex symmetricKey #j .
+                    FinishedExchange(A,B,symmetricKey)@j
+"
+
+lemma secrecy_nonceA:
+"
+    not(
+        Ex A B nonceA #i #j.
+        ReceivedInitializationMessage(A,B,nonceA)@i &
+        K(nonceA)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+lemma secrecy_SymmetricKey:
+"
+    not(
+        Ex A B symmetricKey #i #j.
+        ExtractedSymmetricKey(A,B,symmetricKey)@i &
+        K(symmetricKey)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+/*A protocol guarantees to an agent a in role A 
+injective agreement with an agent b in role B on a message t if, 
+whenever a completes a run of the protocol, apparently with b in role B, 
+then b has previously been running the protocol, apparently with a, 
+and b was acting in role B in his run, and the two principals agreed on the message t. 
+Additionally, there is a unique matching partner instance for each completed run of an
+agent, i.e., for each Commit by an agent there is a unique Running by the supposed partner. */
+lemma B_InjectiveAgreement:
+"
+    All A B symmetricKey #i.
+        FinishedExchange(A,B,symmetricKey) @i
+            ==> (
+                    Ex #j. SetupSymmetricKey(A,B,symmetricKey) @j & 
+                    #j<#i &
+                    not (
+                        Ex A2 B2 #i2. FinishedExchange(A2,B2,symmetricKey) @i2 & 
+                        not (#i2=#i)
+                    )
+                ) | 
+                (Ex C #r. Reveal(C)@r & Honest(C) @i)
+"
+
+lemma A_InjectiveAgreement:
+"
+    All A B symmetricKey #i.
+        FinishedExchange(A,B,symmetricKey) @i
+            ==> (
+                    Ex #j. ExtractedSymmetricKey(A,B,symmetricKey) @j & 
+                    #j<#i &
+                    not (
+                        Ex A2 B2 #i2. FinishedExchange(A2,B2,symmetricKey) @i2 & 
+                        not (#i2=#i)
+                    )
+                ) | 
+                (Ex C #r. Reveal(C)@r & Honest(C) @i)
+"
+
+end
