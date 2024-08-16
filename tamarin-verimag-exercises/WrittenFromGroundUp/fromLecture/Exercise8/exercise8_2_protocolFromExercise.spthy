@@ -1,7 +1,7 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: exercise8_protocolFromExercise.spthy
+ *  Model Name: exercise8_2_protocolFromExercise.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments: 
@@ -10,7 +10,7 @@
  *  3. A → B : {| ⟨⟨A, B⟩, K⟩ |}pk(B)
  */
 
-theory exercise8_protocolFromExercise
+theory exercise8_2_protocolFromExercise
 begin
 
 builtins: symmetric-encryption, asymmetric-encryption
@@ -68,7 +68,7 @@ rule B_RespondToInitFromA:
      let
          decryptedMessage = <aFromMessage, nonceAFromMessage>
  
-         secondMessage = <'2',aFromMessage,~symmetricEncryptionKey>
+         secondMessage = <'2',B,~symmetricEncryptionKey>
          secondMessageEncrypted = aenc(secondMessage, publickeyA)
  
          thirdMessage = <'3', nonceAFromMessage>
@@ -106,7 +106,7 @@ rule A_ReceiveAssymetricEncryptedMessages:
 
 rule A_ReceiveSymmetricEncryptedMessages:
     let
-        secondMessageDecrypted = <'2',A,symmetricKey>
+        secondMessageDecrypted = <'2',B,symmetricKey>
 
         thirdMessageDecrypted = sdec(thirdMessageEncryptedFromB, symmetricKey)
     in
@@ -167,6 +167,8 @@ rule B_ParseSymmetricEncryptionKeyInResponse:
         !Publickey(B,publickeyA)
      ]
     --[ 
+        Honest(A),
+        Honest(B),
         FinishedExchange(A,B,symmetricKey)
      ]->
     [  ]
@@ -179,6 +181,19 @@ exists-trace
             ==>
                 Ex symmetricKey #j .
                     FinishedExchange(A,B,symmetricKey)@j
+"
+
+lemma OriginOfNonce [sources]:
+"
+     All A B nonceA #i . 
+        ReceivedInitializationMessage(A,B,nonceA)@i 
+            ==>
+                (Ex #j . 
+                    InitializedProtocol(A,B,nonceA)@j & 
+                    #j<#i) |
+                (Ex #j . 
+                    K(nonceA)@j & 
+                    #j<#i)
 "
 
 lemma secrecy_nonceA:
@@ -201,6 +216,43 @@ lemma secrecy_SymmetricKey:
         not(Ex #r . Reveal(A)@r) & 
         not(Ex #r . Reveal(B)@r)
     )
+"
+
+/*A protocol guarantees to an agent a in role A 
+injective agreement with an agent b in role B on a message t if, 
+whenever a completes a run of the protocol, apparently with b in role B, 
+then b has previously been running the protocol, apparently with a, 
+and b was acting in role B in his run, and the two principals agreed on the message t. 
+Additionally, there is a unique matching partner instance for each completed run of an
+agent, i.e., for each Commit by an agent there is a unique Running by the supposed partner. */
+lemma B_InjectiveAgreement:
+"
+    All A B symmetricKey #i.
+        FinishedExchange(A,B,symmetricKey) @i
+            ==> (
+                    Ex #j. SetupSymmetricKey(A,B,symmetricKey) @j & 
+                    #j<#i &
+                    not (
+                        Ex A2 B2 #i2. FinishedExchange(A2,B2,symmetricKey) @i2 & 
+                        not (#i2=#i)
+                    )
+                ) | 
+                (Ex C #r. Reveal(C)@r & Honest(C) @i)
+"
+
+lemma A_InjectiveAgreement:
+"
+    All A B symmetricKey #i.
+        FinishedExchange(A,B,symmetricKey) @i
+            ==> (
+                    Ex #j. ExtractedSymmetricKey(A,B,symmetricKey) @j & 
+                    #j<#i &
+                    not (
+                        Ex A2 B2 #i2. FinishedExchange(A2,B2,symmetricKey) @i2 & 
+                        not (#i2=#i)
+                    )
+                ) | 
+                (Ex C #r. Reveal(C)@r & Honest(C) @i)
 "
 
 end
