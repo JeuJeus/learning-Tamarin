@@ -43,7 +43,10 @@ rule A_initialMessageToB:
         !Publickey($B, publickeyB),
         Fr(~nonceA)
      ]
-    --[ StartedInit($A,$B,~nonceA) ]->
+    --[ 
+        StartedInit($A,$B,~nonceA),
+        SentInitMessageWithNonce($A,$B, message, ~nonceA) 
+    ]->
     [ 
         State_A_first($A,$B,~nonceA),
         Out(encryptedMessage)
@@ -80,7 +83,7 @@ rule B_RespondToInitFromA:
         Fr(~symmetricEncryptionKey)
     ]
     --[ 
-        ReceivedInitializationMessage($B,$A,~nonceA),
+        ReceivedInitializationMessage($B,$A,decryptedMessage,~nonceA),
         SetupSymmetricKey($B,$A,~symmetricEncryptionKey) 
     ]->
     [ 
