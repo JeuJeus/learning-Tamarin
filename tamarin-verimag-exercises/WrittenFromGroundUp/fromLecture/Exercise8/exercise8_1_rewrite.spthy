@@ -28,9 +28,9 @@ rule Register_Publickey:
     ]
 
 rule Reveal_Privatekey:
-    [ !Privatekey($X,privatekey) ]
+    [ !Privatekey($X,~privatekey) ]
     --[ Reveal($X) ]->
-    [ Out(privatekey) ]
+    [ Out(~privatekey) ]
 
 rule A_initialMessageToB:
     let
@@ -38,7 +38,7 @@ rule A_initialMessageToB:
         encryptedMessage = aenc(message,publickeyB)
     in
     [ 
-        !Privatekey($A,privatekeyA),
+        !Privatekey($A,~privatekeyA),
         !Publickey($A, publickeyA),
         !Publickey($B, publickeyB),
         Fr(~nonceA)
@@ -51,11 +51,11 @@ rule A_initialMessageToB:
 
 rule B_ReceiveAndDecryptInitFromA:
     let
-        decryptedMessage = adec(encryptedMessage, privatekeyB)
+        decryptedMessage = adec(encryptedMessage, ~privatekeyB)
     in
     [ 
         In(encryptedMessage),
-        !Privatekey($B,privatekeyB),
+        !Privatekey($B,~privatekeyB),
         !Publickey($B, publickeyB),
         !Publickey($A, publickeyA)
      ]
@@ -74,7 +74,7 @@ rule B_RespondToInitFromA:
     in
     [ 
         State_B_first(B,A,decryptedMessage),
-        !Privatekey(B,privatekeyB),
+        !Privatekey(B,~privatekeyB),
         !Publickey(B, publickeyB),
         !Publickey(A, publickeyA),
         Fr(~symmetricEncryptionKey)
@@ -91,12 +91,12 @@ rule B_RespondToInitFromA:
 
 rule A_ReceiveAssymetricEncryptedMessageFromB:
     let
-        asymmetricDecryptedResponseMessage = adec(asymmetricEncryptedResponseMessage,privatekeyA)
+        asymmetricDecryptedResponseMessage = adec(asymmetricEncryptedResponseMessage,~privatekeyA)
     in
     [ 
         In(asymmetricEncryptedResponseMessage),
         State_A_first(A,B,~nonceA),
-        !Privatekey(A,privatekeyA),
+        !Privatekey(A,~privatekeyA),
         !Publickey(A, publickeyA), 
         !Publickey(B, publickeyB)
      ]
@@ -114,7 +114,7 @@ rule A_ReceiveSymetricEncryptedMessageFromB:
     [ 
         In(symmetricEncryptedResponseMessage),
         State_A_second(A,B,asymmetricDecryptedResponseMessage),
-        !Privatekey(A,privatekeyA),
+        !Privatekey(A,~privatekeyA),
         !Publickey(A, publickeyA), 
         !Publickey(B, publickeyB)
      ]
@@ -135,7 +135,7 @@ rule A_SendBackSymmetricKeyToB:
     in
     [ 
         State_A_third(A,B,asymmetricDecryptedResponseMessage,symmetricDecryptedResponseMessage),
-        !Privatekey(A,privatekeyA),
+        !Privatekey(A,~privatekeyA),
         !Publickey(A, publickeyA), 
         !Publickey(B, publickeyB)
      ]
@@ -144,12 +144,12 @@ rule A_SendBackSymmetricKeyToB:
 
 rule B_ReceiveSymmetricEncryptionKeyInResponse:
     let
-        decryptedSymmetricKeyMessage = adec(publicKeyEncryptedSymmetricKeyMessage, privatekeyB)
+        decryptedSymmetricKeyMessage = adec(publicKeyEncryptedSymmetricKeyMessage, ~privatekeyB)
     in
     [ 
         In(publicKeyEncryptedSymmetricKeyMessage),
         State_B_second(B,A,~nonceA,~symmetricEncryptionKey),
-        !Privatekey(B,privatekeyB),
+        !Privatekey(B,~privatekeyB),
         !Publickey(B, publickeyB),
         !Publickey(A, publickeyA) 
      ]
@@ -171,7 +171,7 @@ rule B_ParseSymmetricEncryptionKeyInResponse:
     ]->
     []
 
-lemma executable_precompleteVersion:
+lemma executable:
 exists-trace
 "
     All A B nonce #i . StartedInit(A,B,nonce)@i 
