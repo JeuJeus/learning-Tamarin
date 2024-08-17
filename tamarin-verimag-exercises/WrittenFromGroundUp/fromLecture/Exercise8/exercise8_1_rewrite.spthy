@@ -64,12 +64,12 @@ rule B_ReceiveAndDecryptInitFromA:
 
 rule B_RespondToInitFromA:
     let
-       decryptedMessage = <'1', A, nonceA>
+       decryptedMessage = <'1', A, ~nonceA>
 
        asymmetricResponseMessage = <'2',A,~symmetricEncryptionKey>
        asymmetricEncryptedResponseMessage = aenc(asymmetricResponseMessage, publickeyA)
 
-       symmetricResponseMessage = <'3', nonceA>
+       symmetricResponseMessage = <'3', ~nonceA>
        symmetricEncryptedResponseMessage = senc(symmetricResponseMessage, ~symmetricEncryptionKey)
     in
     [ 
@@ -80,13 +80,13 @@ rule B_RespondToInitFromA:
         Fr(~symmetricEncryptionKey)
     ]
     --[ 
-        ReceivedInitializationMessage(B,A,nonceA),
+        ReceivedInitializationMessage(B,A,~nonceA),
         SetupSymmetricKey(B,A,~symmetricEncryptionKey) 
     ]->
     [ 
         Out(asymmetricEncryptedResponseMessage),
         Out(symmetricEncryptedResponseMessage),
-        State_B_second(B,A,nonceA,~symmetricEncryptionKey)
+        State_B_second(B,A,~nonceA,~symmetricEncryptionKey)
      ]
 
 rule A_ReceiveAssymetricEncryptedMessageFromB:
@@ -95,7 +95,7 @@ rule A_ReceiveAssymetricEncryptedMessageFromB:
     in
     [ 
         In(asymmetricEncryptedResponseMessage),
-        State_A_first(A,B,nonceA),
+        State_A_first(A,B,~nonceA),
         !Privatekey(A,privatekeyA),
         !Publickey(A, publickeyA), 
         !Publickey(B, publickeyB)
@@ -107,9 +107,9 @@ rule A_ReceiveAssymetricEncryptedMessageFromB:
 
 rule A_ReceiveSymetricEncryptedMessageFromB:
     let
-        asymmetricDecryptedResponseMessage = <'2',A,symmetricEncryptionKey>
+        asymmetricDecryptedResponseMessage = <'2',A,~symmetricEncryptionKey>
 
-        symmetricDecryptedResponseMessage = sdec(symmetricEncryptedResponseMessage, symmetricEncryptionKey)
+        symmetricDecryptedResponseMessage = sdec(symmetricEncryptedResponseMessage, ~symmetricEncryptionKey)
     in
     [ 
         In(symmetricEncryptedResponseMessage),
@@ -119,7 +119,7 @@ rule A_ReceiveSymetricEncryptedMessageFromB:
         !Publickey(B, publickeyB)
      ]
     --[
-        ReceivedSymmetricKey(A,B,symmetricEncryptionKey)
+        ReceivedSymmetricKey(A,B,~symmetricEncryptionKey)
     ]->
     [ 
         State_A_third(A,B,asymmetricDecryptedResponseMessage,symmetricDecryptedResponseMessage)
@@ -127,10 +127,10 @@ rule A_ReceiveSymetricEncryptedMessageFromB:
 
 rule A_SendBackSymmetricKeyToB:
     let
-        asymmetricDecryptedResponseMessage = <'2',A,symmetricEncryptionKey>
-        symmetricDecryptedResponseMessage = <'3', nonceA>
+        asymmetricDecryptedResponseMessage = <'2',A,~symmetricEncryptionKey>
+        symmetricDecryptedResponseMessage = <'3', ~nonceA>
 
-        symmetricKeyMessage = <'4',A,B,symmetricEncryptionKey>
+        symmetricKeyMessage = <'4',A,B,~symmetricEncryptionKey>
         publicKeyEncryptedSymmetricKeyMessage = aenc(symmetricKeyMessage, publickeyB)
     in
     [ 
@@ -148,26 +148,26 @@ rule B_ReceiveSymmetricEncryptionKeyInResponse:
     in
     [ 
         In(publicKeyEncryptedSymmetricKeyMessage),
-        State_B_second(B,A,nonceA,symmetricEncryptionKey),
+        State_B_second(B,A,~nonceA,~symmetricEncryptionKey),
         !Privatekey(B,privatekeyB),
         !Publickey(B, publickeyB),
         !Publickey(A, publickeyA) 
      ]
     -->
     [ 
-        State_B_third(B,A,nonceA,symmetricEncryptionKey,decryptedSymmetricKeyMessage) 
+        State_B_third(B,A,~nonceA,~symmetricEncryptionKey,decryptedSymmetricKeyMessage) 
     ]
 
 rule B_ParseSymmetricEncryptionKeyInResponse:
     let
-        decryptedSymmetricKeyMessage = <'4',A,B,symmetricEncryptionKey>
+        decryptedSymmetricKeyMessage = <'4',A,B,~symmetricEncryptionKey>
     in
     [ 
-        State_B_third(B,A,nonceA,symmetricEncryptionKey,decryptedSymmetricKeyMessage) 
+        State_B_third(B,A,~nonceA,~symmetricEncryptionKey,decryptedSymmetricKeyMessage) 
     ]
     --[
-        FinishedExchange(A,B,nonceA),
-        ProtocolRunFinishedWith(A,B,symmetricEncryptionKey)
+        FinishedExchange(A,B,~nonceA),
+        ProtocolRunFinishedWith(A,B,~symmetricEncryptionKey)
     ]->
     []
 
@@ -193,7 +193,7 @@ lemma secrecy_SymmetricKey:
 "
     not(
         Ex A B symmetricKey #i #j.
-        ReceivedSymmetricKey(A,B,symmetricKey)@i &
+        ProtocolRunFinishedWith(A,B,symmetricKey)@i &
         K(symmetricKey)@j &
         not(Ex #r . Reveal(A)@r) & 
         not(Ex #r . Reveal(B)@r)
