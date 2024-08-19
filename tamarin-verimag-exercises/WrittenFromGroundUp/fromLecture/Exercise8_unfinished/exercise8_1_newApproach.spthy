@@ -29,6 +29,11 @@ rule Register_Publickey:
         Out(publickey)
      ]
 
+rule Reveal_Privatekey:
+    [ !Privatekey(X,privatekey) ]
+    --[ Reveal(X) ]->
+    [ Out(privatekey) ]
+
 rule A_Init:
      //1. A -> B: {’1’, A, NA}pk(B)
     let
@@ -37,7 +42,6 @@ rule A_Init:
     in
     [ 
         Fr(~nonce),
-        !Privatekey($A,privatekey_a),
         !Publickey($B, publickey_b)
      ]
     --[ InitializedProtocol($A,$B,~nonce) ]->
@@ -54,10 +58,9 @@ rule B_ReceiveInit:
     in
     [ 
         In(encryptedMessage),
-        !Privatekey($B,privatekey_b),
-        !Publickey(A,publickey_a)
+        !Privatekey($B,privatekey_b)
      ]
-    --[  ]->
+    --[ ReceivedInitializationMessage(A,$B, nonce) ]->
     [ State_B_first($B,A,nonce) ]
 
 rule B_RespondToInit:
@@ -72,10 +75,11 @@ rule B_RespondToInit:
     [ 
         State_B_first(B,A,nonce),
         !Publickey(A, publickey_a),
-        !Publickey(B, publickey_b),
         Fr(~symmetricKey)
      ]
-    --[  ]->
+    --[ 
+        SentSymmetricKeyToPartner(B,A,~symmetricKey)
+     ]->
     [ 
         State_B_second(B,A,nonce,~symmetricKey),
         Out(encryptedSymmetricKeyMessage),
@@ -96,21 +100,19 @@ rule A_ReceiveSymmetricKeyWithMessages:
         In(encryptedSymmetricKeyMessage),
         In(encryptedNonceMessage),
         State_A_first(A,B,nonce),
-        !Privatekey(A,privatekey_a),
-        !Publickey(B,publickey_b)
+        !Privatekey(A,privatekey_a)
      ]
-    --[  ]->
+    --[ ExtractedSymmetricKey(A,B,symmetricKey) ]->
     [ State_A_second(A,B,nonce,symmetricKey) ]
 
 rule A_RespondViaSymmetricEncryption:
      //3. A -> B: {’4’, A, B, K}pk(B)
     let
         message = <'4',A,B,symmetricKey>
-        encryptedMessage = aenc(message,publickey_a)
+        encryptedMessage = aenc(message,publickey_b)
     in
     [ 
         State_A_second(A,B,nonce,symmetricKey),
-        !Publickey(A,publickey_a),
         !Publickey(B,publickey_b) 
     ]
     --[  ]->
@@ -118,13 +120,14 @@ rule A_RespondViaSymmetricEncryption:
 
 rule B_ReceiveFinalResponse:
     let
+        publickey_b = pk(privatekey_b)
+
         message = <'4',A,B,symmetricKey>
-        encryptedMessage = aenc(message,publickey_a)
+        encryptedMessage = aenc(message,publickey_b)
     in
     [ 
         State_B_second(B,A,nonce,symmetricKey),
-        !Publickey(A, publickey_a),
-        !Publickey(B, publickey_b)
+        !Privatekey(B, privatekey_b)
      ]
     --[ FinishedExchange(A,B,symmetricKey) ]->
     [  ]
@@ -139,4 +142,25 @@ exists-trace
                     FinishedExchange(A,B,symmetricKey)@j
 "
 
+lemma secrecy_nonceA:
+"
+    not(
+        Ex A B nonce #i #j.
+        ReceivedInitializationMessage(A,B,nonce)@i &
+        K(nonce)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+lemma secrecy_SymmetricKey:
+"
+    not(
+        Ex A B symmetricKey #i #j.
+        ExtractedSymmetricKey(A,B,symmetricKey)@i &
+        K(symmetricKey)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
 end
