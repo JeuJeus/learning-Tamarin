@@ -1,0 +1,169 @@
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise8_1_rewrite.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * 1. A -> B: {’1’, A, NA}pk(B) //this is asymmetric encryption
+ * 2. B -> A: {’2’, A, K}pk(A), {’3’, NA}K //symmetric encryption in the second message
+ * 3. A -> B: {’4’, A, B, K}pk(B) //use "builtins: symmetric-encryption, asymmetric-encryption"
+ */
+
+theory exercise8_1_rewrite
+begin
+
+builtins: symmetric-encryption, asymmetric-encryption
+
+rule Register_Publickey:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    -->
+    [ 
+        !Privatekey($X, ~privatekey),
+        !Publickey($X, publickey),
+        Out(publickey) 
+    ]
+
+rule Reveal_Privatekey:
+    [ !Privatekey($X,~privatekey) ]
+    --[ Reveal($X) ]->
+    [ Out(~privatekey) ]
+
+rule A_InitialMessageToB:
+    let
+        message = <'1',$A, ~nonceA>
+        encryptedMessage = aenc(message,publickeyB)
+    in
+    [ 
+        !Privatekey($A,~privatekeyA),
+        !Publickey($A, publickeyA),
+        !Publickey($B, publickeyB),
+        Fr(~nonceA)
+     ]
+    --[ 
+        StartedInit($A,$B,~nonceA),
+        SentInitMessageWithNonce($A,$B, message, ~nonceA) 
+    ]->
+    [ 
+        State_A_first($A,$B,~nonceA),
+        Out(encryptedMessage)
+     ]
+
+rule B_ReceiveAndRespondToInitFromA:
+    let
+        plainFirstMessage = <'1', $A, ~nonceA>
+        encryptedMessage = aenc(plainFirstMessage, publickeyB)
+        decryptedMessage = adec(encryptedMessage, ~privatekeyB)
+
+        asymmetricResponseMessage = <'2',$A,~symmetricEncryptionKey>
+        asymmetricEncryptedResponseMessage = aenc(asymmetricResponseMessage, publickeyA)
+
+        symmetricResponseMessage = <'3', ~nonceA>
+        symmetricEncryptedResponseMessage = senc(symmetricResponseMessage, ~symmetricEncryptionKey)
+    in
+    [ 
+        In(encryptedMessage),
+        !Privatekey($B,~privatekeyB),
+        !Publickey($B, publickeyB),
+        !Publickey($A, publickeyA),
+        Fr(~symmetricEncryptionKey)
+     ]
+    --[
+        Eq(decryptedMessage,plainFirstMessage),
+        ReceivedInitializationMessage($B,$A,decryptedMessage,~nonceA),
+        SetupSymmetricKey($B,$A,~symmetricEncryptionKey) 
+    ]->
+    [ 
+        Out(asymmetricEncryptedResponseMessage),
+        Out(symmetricEncryptedResponseMessage),
+        State_B_first($B,$A,~nonceA,~symmetricEncryptionKey)
+    ]
+
+rule A_ReceiveMessagesDecodeAndSendBackSymmetricKeyToB:
+    let
+        incomingMessageWithSymmetricKey = <'2',$A,~symmetricEncryptionKey>
+        asymmetricEncryptedResponseMessage = aenc(incomingMessageWithSymmetricKey, publickeyA)
+        asymmetricDecryptedResponseMessage = adec(asymmetricEncryptedResponseMessage,~privatekeyA)
+        
+    
+        incomingMessageWithNonce = <'3', ~nonceA>
+        symmetricEncryptedResponseMessage = senc(incomingMessageWithNonce, ~symmetricEncryptionKey)
+        symmetricDecryptedResponseMessage = sdec(symmetricEncryptedResponseMessage, ~symmetricEncryptionKey)
+
+        messageWithSymmetricKey = <'4',$A,$B,~symmetricEncryptionKey>
+        publicKeyEncryptedSymmetricKeyMessage = aenc(messageWithSymmetricKey, publickeyB)
+    in
+    [ 
+        In(asymmetricEncryptedResponseMessage),
+        In(symmetricEncryptedResponseMessage),
+        State_A_first($A,$B,~nonceA),
+        !Privatekey($A,~privatekeyA),
+        !Publickey($A, publickeyA), 
+        !Publickey($B, publickeyB)
+     ]
+    --[ 
+        Eq(asymmetricDecryptedResponseMessage, incomingMessageWithSymmetricKey),
+        Eq(symmetricDecryptedResponseMessage, incomingMessageWithNonce),
+        ReceivedSymmetricKey($A,$B,~symmetricEncryptionKey)
+     ]->
+    [ Out(publicKeyEncryptedSymmetricKeyMessage) ]
+
+rule B_ReceiveBackSymmetricKey:
+    let
+        incomingSymmetricKeyMessage = <'4',$A,$B,~symmetricEncryptionKey>
+        encryptedSymmetricKeyMessage = aenc(incomingSymmetricKeyMessage, publickeyB)
+        decryptedSymmetricKeyMessage = adec(publicKeyEncryptedSymmetricKeyMessage, ~privatekeyB)
+    in
+    [ 
+        In(publicKeyEncryptedSymmetricKeyMessage),
+        State_B_first($B,$A,~nonceA,~symmetricEncryptionKey),
+        !Privatekey($B,~privatekeyB),
+        !Publickey($B, publickeyB),
+        !Publickey($A, publickeyA) 
+    ]
+    --[
+        Eq(decryptedSymmetricKeyMessage,incomingSymmetricKeyMessage),
+        FinishedExchange($A,$B,~nonceA),
+        ProtocolRunFinishedWith($A,$B,~symmetricEncryptionKey)
+    ]->
+    []
+
+
+restriction Equality:
+"
+    All x y #i . Eq(x,y)@i ==> x=y    
+"
+
+
+lemma executable:
+exists-trace
+"
+    All A B nonce #i . StartedInit(A,B,nonce)@i 
+        ==> Ex #j . FinishedExchange(B,A,nonce)@j
+"
+
+lemma secrecy_nonceA:
+"
+    not(
+        Ex A B nonceA #i #j.
+        FinishedExchange(A,B,nonceA)@i &
+        K(nonceA)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+lemma secrecy_SymmetricKey:
+"
+    not(
+        Ex A B symmetricKey #i #j.
+        ProtocolRunFinishedWith(A,B,symmetricKey)@i &
+        K(symmetricKey)@j &
+        not(Ex #r . Reveal(A)@r) & 
+        not(Ex #r . Reveal(B)@r)
+    )
+"
+
+end
