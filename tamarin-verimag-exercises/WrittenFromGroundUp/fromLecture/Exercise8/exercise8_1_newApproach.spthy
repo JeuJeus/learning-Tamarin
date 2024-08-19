@@ -40,7 +40,7 @@ rule A_Init:
         !Privatekey($A,privatekey_a),
         !Publickey($B, publickey_b)
      ]
-    --[  ]->
+    --[ InitializedProtocol($A,$B,~nonce) ]->
     [ 
         State_A_first($A,$B,~nonce),
         Out(encryptedMessage) ]
@@ -63,21 +63,21 @@ rule B_ReceiveInit:
 rule B_RespondToInit:
      //2. B -> A: {’2’, A, K}pk(A), {’3’, NA}K
     let
-        symmetricKeyMessage = <'2',$A,~symmetricKey>
+        symmetricKeyMessage = <'2',A,~symmetricKey>
         encryptedSymmetricKeyMessage = aenc(symmetricKeyMessage, publickey_a)
 
         nonceMessage = <'3', nonce>
         encryptedNonceMessage = senc(nonceMessage, ~symmetricKey)
     in
     [ 
-        State_B_first($B,$A,nonce),
-        !Publickey($A, publickey_a),
-        !Publickey($B, publickey_b),
+        State_B_first(B,A,nonce),
+        !Publickey(A, publickey_a),
+        !Publickey(B, publickey_b),
         Fr(~symmetricKey)
      ]
     --[  ]->
     [ 
-        State_B_second($B,$A,nonce,~symmetricKey),
+        State_B_second(B,A,nonce,~symmetricKey),
         Out(encryptedSymmetricKeyMessage),
         Out(encryptedNonceMessage) 
     ]
@@ -86,7 +86,7 @@ rule A_ReceiveSymmetricKeyWithMessages:
     let
         publickey_a = pk(privatekey_a)
 
-        symmetricKeyMessage = <'2',$A,symmetricKey>
+        symmetricKeyMessage = <'2',A,symmetricKey>
         encryptedSymmetricKeyMessage = aenc(symmetricKeyMessage, publickey_a)
 
         nonceMessage = <'3', nonce>
@@ -95,37 +95,48 @@ rule A_ReceiveSymmetricKeyWithMessages:
     [ 
         In(encryptedSymmetricKeyMessage),
         In(encryptedNonceMessage),
-        State_A_first($A,$B,nonce),
-        !Privatekey($A,privatekey_a),
-        !Publickey($B,publickey_b)
+        State_A_first(A,B,nonce),
+        !Privatekey(A,privatekey_a),
+        !Publickey(B,publickey_b)
      ]
     --[  ]->
-    [ State_A_second($A,$B,nonce,symmetricKey) ]
+    [ State_A_second(A,B,nonce,symmetricKey) ]
 
 rule A_RespondViaSymmetricEncryption:
      //3. A -> B: {’4’, A, B, K}pk(B)
     let
-        message = <'4',$A,$B,symmetricKey>
+        message = <'4',A,B,symmetricKey>
         encryptedMessage = aenc(message,publickey_a)
     in
     [ 
-        State_A_second($A,$B,nonce,symmetricKey),
-        !Publickey($A,publickey_a),
-        !Publickey($B,publickey_b) 
+        State_A_second(A,B,nonce,symmetricKey),
+        !Publickey(A,publickey_a),
+        !Publickey(B,publickey_b) 
     ]
     --[  ]->
     [ Out(encryptedMessage) ]
 
 rule B_ReceiveFinalResponse:
     let
-        message = <'4',$A,$B,symmetricKey>
+        message = <'4',A,B,symmetricKey>
         encryptedMessage = aenc(message,publickey_a)
     in
     [ 
-        State_B_second($B,$A,nonce,symmetricKey),
-        !Publickey($A, publickey_a),
-        !Publickey($B, publickey_b)
+        State_B_second(B,A,nonce,symmetricKey),
+        !Publickey(A, publickey_a),
+        !Publickey(B, publickey_b)
      ]
-    --[  ]->
+    --[ FinishedExchange(A,B,symmetricKey) ]->
     [  ]
+
+lemma executable:
+exists-trace
+"
+        All A B nonce #i .
+        InitializedProtocol(A,B,nonce)@i
+            ==>
+                Ex symmetricKey #j .
+                    FinishedExchange(A,B,symmetricKey)@j
+"
+
 end
