@@ -34,7 +34,7 @@ rule Reveal_Privatekey:
 rule A_InitialMessageToB:
     let
         message = <'1',$A, ~nonceA>
-        encryptedMessage = aenc(message,publickeyB)
+        encryptedMessage = aenc(<'1',$A, ~nonceA>,publickeyB)
     in
     [ 
         !Privatekey($A,~privatekeyA),
@@ -48,14 +48,13 @@ rule A_InitialMessageToB:
     ]->
     [ 
         State_A_first($A,$B,~nonceA),
-        Out(encryptedMessage)
+        Out(aenc(<'1',$A, ~nonceA>,publickeyB))
      ]
 
 rule B_ReceiveAndRespondToInitFromA:
     let
         plainFirstMessage = <'1', $A, ~nonceA>
-        encryptedMessage = aenc(plainFirstMessage, publickeyB)
-        decryptedMessage = adec(encryptedMessage, ~privatekeyB)
+        encryptedMessage = aenc(<'1', $A, ~nonceA>, publickeyB)
 
         asymmetricResponseMessage = <'2',$A,~symmetricEncryptionKey>
         asymmetricEncryptedResponseMessage = aenc(asymmetricResponseMessage, publickeyA)
@@ -64,15 +63,14 @@ rule B_ReceiveAndRespondToInitFromA:
         symmetricEncryptedResponseMessage = senc(symmetricResponseMessage, ~symmetricEncryptionKey)
     in
     [ 
-        In(encryptedMessage),
+        In(aenc(<'1', $A, ~nonceA>, publickeyB)),
         !Privatekey($B,~privatekeyB),
         !Publickey($B, publickeyB),
         !Publickey($A, publickeyA),
         Fr(~symmetricEncryptionKey)
      ]
     --[
-        Eq(decryptedMessage,plainFirstMessage),
-        ReceivedInitializationMessage($B,$A,decryptedMessage,~nonceA),
+        ReceivedInitializationMessage($B,$A,plainFirstMessage,~nonceA),
         SetupSymmetricKey($B,$A,~symmetricEncryptionKey) 
     ]->
     [ 
@@ -85,12 +83,9 @@ rule A_ReceiveMessagesDecodeAndSendBackSymmetricKeyToB:
     let
         incomingMessageWithSymmetricKey = <'2',$A,~symmetricEncryptionKey>
         asymmetricEncryptedResponseMessage = aenc(incomingMessageWithSymmetricKey, publickeyA)
-        asymmetricDecryptedResponseMessage = adec(asymmetricEncryptedResponseMessage,~privatekeyA)
         
-    
         incomingMessageWithNonce = <'3', ~nonceA>
         symmetricEncryptedResponseMessage = senc(incomingMessageWithNonce, ~symmetricEncryptionKey)
-        symmetricDecryptedResponseMessage = sdec(symmetricEncryptedResponseMessage, ~symmetricEncryptionKey)
 
         messageWithSymmetricKey = <'4',$A,$B,~symmetricEncryptionKey>
         publicKeyEncryptedSymmetricKeyMessage = aenc(messageWithSymmetricKey, publickeyB)
@@ -104,8 +99,6 @@ rule A_ReceiveMessagesDecodeAndSendBackSymmetricKeyToB:
         !Publickey($B, publickeyB)
      ]
     --[ 
-        Eq(asymmetricDecryptedResponseMessage, incomingMessageWithSymmetricKey),
-        Eq(symmetricDecryptedResponseMessage, incomingMessageWithNonce),
         ReceivedSymmetricKey($A,$B,~symmetricEncryptionKey)
      ]->
     [ Out(publicKeyEncryptedSymmetricKeyMessage) ]
@@ -114,7 +107,6 @@ rule B_ReceiveBackSymmetricKey:
     let
         incomingSymmetricKeyMessage = <'4',$A,$B,~symmetricEncryptionKey>
         encryptedSymmetricKeyMessage = aenc(incomingSymmetricKeyMessage, publickeyB)
-        decryptedSymmetricKeyMessage = adec(publicKeyEncryptedSymmetricKeyMessage, ~privatekeyB)
     in
     [ 
         In(publicKeyEncryptedSymmetricKeyMessage),
@@ -124,18 +116,10 @@ rule B_ReceiveBackSymmetricKey:
         !Publickey($A, publickeyA) 
     ]
     --[
-        Eq(decryptedSymmetricKeyMessage,incomingSymmetricKeyMessage),
         FinishedExchange($A,$B,~nonceA),
         ProtocolRunFinishedWith($A,$B,~symmetricEncryptionKey)
     ]->
     []
-
-
-restriction Equality:
-"
-    All x y #i . Eq(x,y)@i ==> x=y    
-"
-
 
 lemma executable:
 exists-trace
