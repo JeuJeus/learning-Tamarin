@@ -53,14 +53,11 @@ rule A_InitialMessageToB:
 
 rule B_ReceiveAndRespondToInitFromA:
     let
-        plainFirstMessage = <'1', $A, ~nonceA>
         encryptedMessage = aenc(<'1', $A, ~nonceA>, publickeyB)
 
-        asymmetricResponseMessage = <'2',$A,~symmetricEncryptionKey>
-        asymmetricEncryptedResponseMessage = aenc(asymmetricResponseMessage, publickeyA)
+        asymmetricEncryptedResponseMessage = aenc(<'2',$A,~symmetricEncryptionKey>, publickeyA)
 
-        symmetricResponseMessage = <'3', ~nonceA>
-        symmetricEncryptedResponseMessage = senc(symmetricResponseMessage, ~symmetricEncryptionKey)
+        symmetricEncryptedResponseMessage = senc(<'3', ~nonceA>, ~symmetricEncryptionKey)
     in
     [ 
         In(aenc(<'1', $A, ~nonceA>, publickeyB)),
@@ -70,7 +67,7 @@ rule B_ReceiveAndRespondToInitFromA:
         Fr(~symmetricEncryptionKey)
      ]
     --[
-        ReceivedInitializationMessage($B,$A,plainFirstMessage,~nonceA),
+        ReceivedInitializationMessage($B,$A,<'1', $A, ~nonceA>,~nonceA),
         SetupSymmetricKey($B,$A,~symmetricEncryptionKey) 
     ]->
     [ 
