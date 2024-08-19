@@ -1,0 +1,187 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise9_Yahalom.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * A → B : A, N_A
+ * B → S : B, {′1′, A, N_A, N_B}K_BS
+ * S → A : {′2′, B, K_AB, N_A, N_B}K_AS , {′3′, A, K_AB}K_BS
+ * A → B : {′4′, A, K_AB}K_BS , {′5′, N_B}K_AB
+ */
+
+theory Exercise9_Yahalom
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption
+
+rule SetupSymmetricKey:
+    [ Fr(~symmetricKey) ]
+    --[  ]->
+    [ 
+        !SymmetricKey($X,$Y,~symmetricKey), 
+        !SymmetricKey($Y,$X,~symmetricKey)
+    ]
+
+rule LeakSymmetricKey:
+    [ !SymmetricKey(X,Y,symmetricKey) ]
+    --[ 
+        Reveal(X),
+        Reveal(Y) 
+    ]->
+    [ Out(symmetricKey) ]
+
+rule A_InitB: //A → B : A, N_A
+    [ Fr(~nonce_a) ]
+    --[ Init($A) ]->
+    [ 
+        Out($A),
+        Out(~nonce_a)
+    ]
+
+rule B_ReceiveAAndContactS: //B → S : B, {′1′, A, N_A, N_B}K_BS
+    [ 
+        In($A),
+        In(nonce_a),
+        !SymmetricKey($B,$S,symmetricKey_bs),
+        Fr(~nonce_b)
+     ]
+    --[ 
+        HasNonce_a($B,nonce_a),
+        Out_B_nonces($B,$A,nonce_a,~nonce_b)
+    ]->
+    [ 
+        Out($B),
+        Out(senc(<'1',$A,nonce_a,~nonce_b>,symmetricKey_bs))
+    ]
+
+rule S_ReceiveBAndContactA: //S → A : {′2′, B, K_AB, N_A, N_B}K_AS , {′3′, A, K_AB}K_BS
+    let
+        message = <'1',A,nonce_a,nonce_b>
+        secondMessage = <'2',B,symmetricKey_ab,nonce_a,nonce_b>
+        thirdMessage = <'3',A,symmetricKey_ab>
+    in
+    [ 
+        In(B),
+        In(senc(message,symmetricKey_bs)),
+        !SymmetricKey($S,B,symmetricKey_bs),
+        !SymmetricKey($S,A,symmetricKey_sa),
+        !SymmetricKey(A,B,symmetricKey_ab)
+     ]
+     --[ 
+        HasNonce_a($S,nonce_a),
+        HasNonce_b($S, nonce_b),
+        In_S_nonces($S,A,nonce_a,nonce_b),
+        Out_S_symmetrickey_and_nonces($S,B,symmetricKey_ab,nonce_a,nonce_b,secondMessage),
+        Out_S_symmetrickey($S,A,symmetricKey_ab,thirdMessage)
+     ]->
+    [ 
+        Out(senc(secondMessage,symmetricKey_sa)),
+        Out(senc(thirdMessage,symmetricKey_bs))
+    ]
+
+rule A_ReceiveSAndContactB: //A → B : {′4′, A, K_AB}K_BS , {′5′, N_B}K_AB
+    let
+        secondMessage = <'2',B,symmetricKey_ab,nonce_a,nonce_b>
+        fifthMessage = <'5', nonce_b>
+    in
+    [ 
+        In(messageBS),
+        In(senc(secondMessage,symmetricKey_sa)),
+        !SymmetricKey($S,$A, symmetricKey_sa)
+     ]
+    --[ 
+        HasNonce_a($A,nonce_a),
+        HasNonce_b($A, nonce_b),
+        In_A_symmetrickey_and_nonces($A,B,symmetricKey_ab,nonce_a,nonce_b,secondMessage),
+        Out_A_nonceb($A,nonce_b,fifthMessage)
+     ]->
+    [ 
+        Out(messageBS),
+        Out(senc(fifthMessage,symmetricKey_ab))
+    ]
+
+rule S_FinalReceive:
+    let 
+        fifthMessage = <'5', nonce_b>
+        thirdMessage = <'3',A,symmetricKey_ab>
+    in
+    [ 
+        In(senc(thirdMessage,symmetricKey_bs)),
+        In(senc(fifthMessage,symmetricKey_ab)),
+        !SymmetricKey($B,$S,symmetricKey_bs)
+     ]
+    --[ 
+        HasNonce_b($S, nonce_b),
+        FinishedExchange(A,$B,$S),
+        IN_S_symmetrickey($S,A,symmetricKey_ab,thirdMessage),
+        In_S_nonceb($S,nonce_b,fifthMessage)
+    ]->
+    [  ]
+
+lemma executable: exists-trace
+"
+    All A #i . Init(A)@i ==> Ex B S #j . FinishedExchange(A,B,S)@j
+"
+
+lemma types [sources]:
+" 
+    (All S A nonce_a nonce_b #i.
+        In_S_nonces(S,A,nonce_a,nonce_b)@i
+        ==>
+            ( 
+                (Ex #j. KU(nonce_a) @ j & #j<#i) |
+                (Ex #j. KU(nonce_b) @ j & #j<#i) |
+                (Ex B #j. Out_B_nonces(B,A,nonce_a,nonce_b)@j)
+            )
+    ) &
+    (All A B symmetricKey_ab nonce_a nonce_b message#i.
+        In_A_symmetrickey_and_nonces(A,B,symmetricKey_ab,nonce_a,nonce_b, message)@i
+        ==>
+            ( 
+                (Ex #j. KU(nonce_a) @ j & #j<#i) |
+                (Ex #j. KU(nonce_b) @ j & #j<#i) |
+                (Ex #j. KU(symmetricKey_ab) @ j & #j<#i) |
+                (Ex S #j. Out_S_symmetrickey_and_nonces(S,B,symmetricKey_ab,nonce_a,nonce_b,message)@j)
+            )
+    ) &
+    (All S nonce_b message#i.
+        In_S_nonceb(S,nonce_b,message)@i
+        ==>
+            ( 
+                (Ex #j. KU(nonce_b) @ j & #j<#i) |
+                (Ex A #j. Out_A_nonceb(A,nonce_b,message)@j)
+            )
+    ) &
+    (All S A symmetricKey_ab message#i.
+        IN_S_symmetrickey(S,A,symmetricKey_ab,message)@i
+        ==>
+            ( 
+                (Ex #j. KU(symmetricKey_ab) @ j & #j<#i) |
+                (Ex A #j. Out_S_symmetrickey(S,A,symmetricKey_ab,message)@j)
+            )
+    ) 
+"
+
+lemma secrecy_nonce_a:
+"
+    not(
+        Ex X nonce_a #i #j.
+        HasNonce_a(X, nonce_a)@i
+        & K(nonce_a)@j
+        & not(Ex #r . Reveal(X)@r)
+    )
+"
+
+lemma secrecy_nonce_b:
+"
+    not(
+        Ex X nonce_b #i #j.
+        HasNonce_b(X, nonce_b)@i
+        & K(nonce_b)@j
+        & not(Ex #r . Reveal(X)@r)
+    )
+"
+
+end
