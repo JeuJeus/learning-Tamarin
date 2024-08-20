@@ -36,6 +36,7 @@ rule A_InitB: //A → B : A, N_A
     [ Fr(~nonce_a) ]
     --[ Init($A) ]->
     [ 
+        State_A_first($A,~nonce_a),
         Out($A),
         Out(~nonce_a)
     ]
@@ -44,7 +45,7 @@ rule B_ReceiveAAndContactS: //B → S : B, {′1′, A, N_A, N_B}K_BS
     [ 
         In($A),
         In(nonce_a),
-        !SymmetricKey($B,$S,symmetricKey_bs),
+        !SymmetricKey($B,$S,~symmetricKey_bs),
         Fr(~nonce_b)
      ]
     --[ 
@@ -53,70 +54,73 @@ rule B_ReceiveAAndContactS: //B → S : B, {′1′, A, N_A, N_B}K_BS
     ]->
     [ 
         Out($B),
-        Out(senc(<'1',$A,nonce_a,~nonce_b>,symmetricKey_bs))
+        Out(senc(<'1',$A,nonce_a,~nonce_b>,~symmetricKey_bs))
     ]
 
 rule S_ReceiveBAndContactA: //S → A : {′2′, B, K_AB, N_A, N_B}K_AS , {′3′, A, K_AB}K_BS
     let
         message = <'1',A,nonce_a,nonce_b>
-        secondMessage = <'2',B,symmetricKey_ab,nonce_a,nonce_b>
-        thirdMessage = <'3',A,symmetricKey_ab>
+        secondMessage = <'2',B,~symmetricKey_ab,nonce_a,nonce_b>
+        thirdMessage = <'3',A,~symmetricKey_ab>
     in
     [ 
         In(B),
-        In(senc(message,symmetricKey_bs)),
-        !SymmetricKey($S,B,symmetricKey_bs),
+        In(senc(message,~symmetricKey_bs)),
+        !SymmetricKey($S,B,~symmetricKey_bs),
         !SymmetricKey($S,A,symmetricKey_sa),
-        !SymmetricKey(A,B,symmetricKey_ab)
+        !SymmetricKey(A,B,~symmetricKey_ab)
      ]
      --[ 
         HasNonce_a($S,nonce_a),
         HasNonce_b($S, nonce_b),
         In_S_nonces($S,A,nonce_a,nonce_b),
-        Out_S_symmetrickey_and_nonces($S,B,symmetricKey_ab,nonce_a,nonce_b,secondMessage),
-        Out_S_symmetrickey($S,A,symmetricKey_ab,thirdMessage)
+        Out_S_symmetrickey_and_nonces($S,B,~symmetricKey_ab,nonce_a,nonce_b,secondMessage),
+        Out_S_symmetrickey($S,A,~symmetricKey_ab,thirdMessage)
      ]->
     [ 
+        State_S_first($S,A,B,nonce_a,nonce_b),
         Out(senc(secondMessage,symmetricKey_sa)),
-        Out(senc(thirdMessage,symmetricKey_bs))
+        Out(senc(thirdMessage,~symmetricKey_bs))
     ]
 
 rule A_ReceiveSAndContactB: //A → B : {′4′, A, K_AB}K_BS , {′5′, N_B}K_AB
     let
-        secondMessage = <'2',B,symmetricKey_ab,nonce_a,nonce_b>
+        secondMessage = <'2',B,~symmetricKey_ab,nonce_a,nonce_b>
         fifthMessage = <'5', nonce_b>
     in
     [ 
+        State_A_first(A,nonce_a),
         In(messageBS),
         In(senc(secondMessage,symmetricKey_sa)),
-        !SymmetricKey($S,$A, symmetricKey_sa)
+        !SymmetricKey($S,A, symmetricKey_sa)
      ]
     --[ 
-        HasNonce_a($A,nonce_a),
-        HasNonce_b($A, nonce_b),
-        In_A_symmetrickey_and_nonces($A,B,symmetricKey_ab,nonce_a,nonce_b,secondMessage),
-        Out_A_nonceb($A,nonce_b,fifthMessage)
+        HasNonce_a(A,nonce_a),
+        HasNonce_b(A, nonce_b),
+        In_A_symmetrickey_and_nonces(A,B,~symmetricKey_ab,nonce_a,nonce_b,secondMessage),
+        Out_A_nonceb(A,nonce_b,fifthMessage)
      ]->
     [ 
         Out(messageBS),
-        Out(senc(fifthMessage,symmetricKey_ab))
+        Out(senc(fifthMessage,~symmetricKey_ab))
     ]
 
 rule S_FinalReceive:
     let 
         fifthMessage = <'5', nonce_b>
-        thirdMessage = <'3',A,symmetricKey_ab>
+        thirdMessage = <'3',A,~symmetricKey_ab>
     in
     [ 
-        In(senc(thirdMessage,symmetricKey_bs)),
-        In(senc(fifthMessage,symmetricKey_ab)),
-        !SymmetricKey($B,$S,symmetricKey_bs)
+        State_S_first(S,A,B,nonce_a,nonce_b),
+        In(senc(thirdMessage,~symmetricKey_bs)),
+        In(senc(fifthMessage,~symmetricKey_ab)),
+        !SymmetricKey(B,S,~symmetricKey_bs)
      ]
     --[ 
-        HasNonce_b($S, nonce_b),
-        FinishedExchange(A,$B,$S),
-        IN_S_symmetrickey($S,A,symmetricKey_ab,thirdMessage),
-        In_S_nonceb($S,nonce_b,fifthMessage)
+        HasNonce_b(S, nonce_b),
+        FinishedExchange(A,B,S),
+        IN_S_symmetrickey(S,A,~symmetricKey_ab,thirdMessage),
+        In_S_nonceb(S,nonce_b,fifthMessage)
     ]->
     [  ]
 
@@ -135,7 +139,11 @@ lemma types [sources]:
                 (Ex #j. KU(nonce_b) @ j & #j<#i) |
                 (Ex B #j. Out_B_nonces(B,A,nonce_a,nonce_b)@j)
             )
-    ) &
+    ) 
+"
+
+lemma types2 [sources]:
+" 
     (All A B symmetricKey_ab nonce_a nonce_b message#i.
         In_A_symmetrickey_and_nonces(A,B,symmetricKey_ab,nonce_a,nonce_b, message)@i
         ==>
@@ -145,7 +153,11 @@ lemma types [sources]:
                 (Ex #j. KU(symmetricKey_ab) @ j & #j<#i) |
                 (Ex S #j. Out_S_symmetrickey_and_nonces(S,B,symmetricKey_ab,nonce_a,nonce_b,message)@j)
             )
-    ) &
+    ) 
+"
+
+lemma types3 [sources]:
+" 
     (All S nonce_b message#i.
         In_S_nonceb(S,nonce_b,message)@i
         ==>
@@ -153,7 +165,11 @@ lemma types [sources]:
                 (Ex #j. KU(nonce_b) @ j & #j<#i) |
                 (Ex A #j. Out_A_nonceb(A,nonce_b,message)@j)
             )
-    ) &
+    ) 
+"
+
+lemma types4 [sources]:
+" 
     (All S A symmetricKey_ab message#i.
         IN_S_symmetrickey(S,A,symmetricKey_ab,message)@i
         ==>
