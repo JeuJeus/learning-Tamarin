@@ -18,11 +18,21 @@ rule SetupSymmetricKey:
     --[  ]->
     [ !SymmetricKey($X,$Y,~symmetricKey) ]
 
+rule Init:
+    [  ]
+    --[  ]->
+    [ 
+        State_A_init(),
+        State_B_init(),
+        State_S_init() 
+    ]
+
 rule A_ToB_Init: //A->B : A,N_a
     [ 
         Fr(~nonce_a)
     ]
     --[ 
+        State_A_init(),
         Init($A) 
     ]->
     [ 
@@ -31,37 +41,52 @@ rule A_ToB_Init: //A->B : A,N_a
     ]
 
 rule B_ToS_SendAndForwardNonce: //B->S : B, {A,N_A,N_B}K_BS
+    let 
+        message = <A,nonce_a,~nonce_b>
+    in
     [ 
+        State_B_init(),
         In(<A,nonce_a>),
         !SymmetricKey($B,$S,symmetricKey_bs),
         Fr(~nonce_b)
     ]
-    --[  ]->
+    --[ 
+        Out_B_nonces($B,$S,nonce_a,~nonce_b,message)
+     ]->
     [ 
         State_B_first($B,$S,A,nonce_a,~nonce_b),    
         Out($B),
-        Out(senc(<A,nonce_a,~nonce_b>,symmetricKey_bs)) 
+        Out(senc(message,symmetricKey_bs)) 
     ]
 
 rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,K_AB,N_A,N_B}K_AS, {A,K_AB}K_BS
     let 
      key_ab = generatedKey(nonce_a,nonce_b)
+     incomingMessage = <A,nonce_a,nonce_b>
+     outgoingMessageNoncesSymmetricKey = <$B,key_ab,nonce_a,nonce_b>
+     outgoingMessageSymmetricKey = <A,key_ab>
     in
     [ 
+        State_S_init(),
         In($B),
-        In(senc(<A,nonce_a,nonce_b>,symmetricKey_bs)),
+        In(senc(incomingMessage,symmetricKey_bs)),
         !SymmetricKey($B,$S,symmetricKey_bs),
         !SymmetricKey(A,$S,symmetricKey_as)
     ]
-    --[  ]->
+    --[ 
+        In_S_nonces($B,$S,nonce_a,nonce_b,incomingMessage),
+        Out_S_symmetrickey_and_nonces(symmetricKey_as,outgoingMessageNoncesSymmetricKey),
+        Out_S_symmetrickey(symmetricKey_bs,outgoingMessageSymmetricKey)
+     ]->
     [ 
-        Out(senc(<$B,key_ab,nonce_a,nonce_b>,symmetricKey_as)),
-        Out(senc(<A,key_ab>,symmetricKey_bs))
+        Out(senc(outgoingMessageNoncesSymmetricKey,symmetricKey_as)),
+        Out(senc(outgoingMessageSymmetricKey,symmetricKey_bs))
     ]
 
 rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
     let 
         key_ab = generatedKey(nonce_a,nonce_b)
+        incomingMessageNoncesSymmetricKey = <B,key_ab,nonce_a,nonce_b>
     in
     [ 
         State_A_first(A,nonce_a),
@@ -69,7 +94,9 @@ rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
         In(encryptedGeneratedKeyMessage),
         !SymmetricKey(A,$S,symmetricKey_as)
      ]
-    --[  ]->
+    --[ 
+        In_A_symmetrickey_and_nonces(key_ab,nonce_a,nonce_b,incomingMessageNoncesSymmetricKey)
+     ]->
     [ 
         Out(encryptedGeneratedKeyMessage),
         Out(senc(<nonce_b>,key_ab))
@@ -78,15 +105,17 @@ rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
 rule B_FinalReceive:
     let 
         key_ab = generatedKey(nonce_a,nonce_b)
+        incomingSymmetricKeyMessage = <A,key_ab>
     in
     [ 
         State_B_first(B,S,A,nonce_a,nonce_b),
-        In(senc(<A,key_ab>,symmetricKey_bs)),
+        In(senc(incomingSymmetricKeyMessage,symmetricKey_bs)),
         In(senc(<nonce_b>,key_ab)),
         !SymmetricKey(B,S,symmetricKey_bs)
      ]
     --[ 
-        FinishedExchange(A,B,S)
+        FinishedExchange(A,B,S),
+        In_B_symmetrickey(symmetricKey_bs,incomingSymmetricKeyMessage)
     ]->
     [  ]
 
@@ -95,4 +124,19 @@ lemma executable: exists-trace
         All A #i . Init(A)@i ==> Ex B S #j . FinishedExchange(A,B,S)@j
     "
 
+lemma types [sources]:
+    " 
+        (All B S nonce_a nonce_b message #i .
+            In_S_nonces(B,S,nonce_a,nonce_b,message)@i
+                ==>
+                    ( 
+                        (Ex #j #k . 
+                            KU(nonce_a)@j & 
+                            KU(nonce_b)@k & 
+                            #j<#i & 
+                            #k<#i) | 
+                        (Ex #j . Out_B_nonces(B,S,nonce_a,nonce_b,message)@j)
+                    )
+        )
+    "
 end
