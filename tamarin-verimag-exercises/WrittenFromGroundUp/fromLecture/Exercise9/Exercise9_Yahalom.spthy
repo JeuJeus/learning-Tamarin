@@ -1,4 +1,3 @@
-
 /*
  *  Author: Julius Figge
  *  Model Name: Exercise9_Yahalom.spthy
@@ -11,7 +10,6 @@ theory Exercise9_Yahalom
 begin
 
 builtins: symmetric-encryption
-functions: generatedKey/2
 
 rule Setup_SymmetricKeyWithS:
     [ Fr(~symmetricKey) ]
@@ -58,21 +56,20 @@ rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,Key_AB,Nonce_A,Nonce_B
         decryptedFirstMessage = <'1',A,nonce_a,nonce_b>
         incomingMessage = <B,senc(decryptedFirstMessage,symmetricKey_bs)>
 
-        key_ab = generatedKey(nonce_a,nonce_b)
-        
-        secondMessage = <'2',B,key_ab,nonce_a,nonce_b>
+        secondMessage = <'2',B,~key_ab,nonce_a,nonce_b>
         encryptedSecondMessage = senc(secondMessage,symmetricKey_as)
-        thirdMessage = <'3',A,key_ab>
+        thirdMessage = <'3',A,~key_ab>
         encryptedThirdMessage = senc(thirdMessage,symmetricKey_bs)
         outgoingMessage = <encryptedSecondMessage,encryptedThirdMessage>
     in
     [ 
         !SymmetricKeyWithS(A,symmetricKey_as),
         !SymmetricKeyWithS(B,symmetricKey_bs),
-        In(incomingMessage)
+        In(incomingMessage),
+        Fr(~key_ab)
     ]
     --[ 
-        SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b),
+        SetupReadyAtS(A,B,~key_ab,nonce_a,nonce_b),
      ]->
     [ 
         Out(outgoingMessage)
@@ -146,7 +143,7 @@ lemma secrecy_NonceA:
     All A B nonce_a #j . 
         SecretNonceA(A,B,nonce_a)@j
             ==> 
-                (not Ex #i . K(nonce_a)@i) |
+                (not Ex #i . K(nonce_a)@i) | //should this not be the case when sending the first message A->B <A,nonce_a> which is unencrypted?
                 (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
                 (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i) 
 "
@@ -160,6 +157,4 @@ lemma secrecy_NonceB:
                 (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
                 (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i) 
 "
-
-
 end
