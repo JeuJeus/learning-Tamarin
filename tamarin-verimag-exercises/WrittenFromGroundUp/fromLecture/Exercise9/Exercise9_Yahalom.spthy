@@ -45,6 +45,7 @@ rule B_ToS_SendAndForwardNonce: //B->S : B, {A,Nonce_A,Nonce_B}K_BS
         Fr(~nonce_b)
     ]
     --[ 
+        SecretNonceA(A,$B,nonce_a)
      ]->
     [ 
         State_B_first($B,$S,A,nonce_a,~nonce_b),    
@@ -70,6 +71,8 @@ rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,Key_AB,Nonce_A,Nonce_B
     ]
     --[ 
         SetupReadyAtS(A,B,~key_ab,nonce_a,nonce_b),
+        SecretNonceA(A,B,nonce_a),
+        SecretNonceB(A,B,nonce_b)
      ]->
     [ 
         Out(outgoingMessage)
@@ -83,7 +86,7 @@ rule A_ToB_Finish: //A->B : {A,Key_AB}K_BS, {Nonce_B}Key_AB
 
         fourthMessage = <'4',nonce_b>
         encryptedFourthMessage = senc(fourthMessage, key_ab)
-        outgoingMessage = <undecryptableMessageToForward,fourthMessage>
+        outgoingMessage = <undecryptableMessageToForward,encryptedFourthMessage>
     in
     [ 
         State_A_first(A,nonce_a),
@@ -92,6 +95,8 @@ rule A_ToB_Finish: //A->B : {A,Key_AB}K_BS, {Nonce_B}Key_AB
      ]
     --[ 
         SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b),
+        SecretNonceA(A,B,nonce_a),
+        SecretNonceB(A,B,nonce_b)
      ]->
     [ 
         Out(outgoingMessage)
