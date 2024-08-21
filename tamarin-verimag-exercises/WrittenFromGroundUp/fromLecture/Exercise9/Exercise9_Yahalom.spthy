@@ -178,7 +178,7 @@ lemma secrecy_key_ab:
                 (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i)  
 "
 
-lemma lemma_noninjective_agreement_a:
+lemma noninjective_agreement_a:
     "All A B key_ab nonce_a nonce_b #i.
         CommitA(A,B,key_ab,nonce_a,nonce_b)@i
             ==> 
@@ -186,10 +186,40 @@ lemma lemma_noninjective_agreement_a:
                 (Ex C #r. RevealedSymmetrickeyWithSAnd(C)@r)"
 
 
-lemma lemma_noninjective_agreement_b:
+lemma noninjective_agreement_b:
     "All A B key_ab nonce_a nonce_b #i.
         CommitB(A,B,key_ab,nonce_a,nonce_b)@i
             ==> 
                 (Ex #j. RunningA(B,A,key_ab,nonce_a,nonce_b)@j & #j<#i) | 
                 (Ex C #r. RevealedSymmetrickeyWithSAnd(C)@r)"
+
+lemma injective_agreement_a:
+"   All A B key_ab nonce_a nonce_b #i.
+        CommitA(A,B,key_ab,nonce_a,nonce_b) @i
+            ==> 
+                (
+                    Ex #j. RunningB(A,B,nonce_a,nonce_b)@j & 
+                    #j<#i & 
+                    not (
+                        Ex A2 B2 #i2. CommitA(A2,B2,key_ab,nonce_a,nonce_b)@i2 & 
+                        not (#i2=#i)
+                        )
+                    ) | 
+                    (Ex C #r. RevealedSymmetrickeyWithSAnd(C)@r)
+"
+
+lemma injective_agreement_b:
+"   All A B key_ab nonce_a nonce_b #i.
+        CommitB(A,B,key_ab,nonce_a,nonce_b) @i
+            ==> 
+                (
+                    Ex #j. RunningA(A,B,key_ab,nonce_a,nonce_b)@j & 
+                    #j<#i & 
+                    not (
+                        Ex A2 B2 #i2. CommitB(A2,B2,key_ab,nonce_a,nonce_b)@i2 & 
+                        not (#i2=#i)
+                        )
+                    ) | 
+                    (Ex C #r. RevealedSymmetrickeyWithSAnd(C)@r)
+"
 end
