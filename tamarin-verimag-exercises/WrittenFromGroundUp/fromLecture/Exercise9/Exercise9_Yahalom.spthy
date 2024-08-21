@@ -15,11 +15,11 @@ functions: generatedKey/2
 
 rule Setup_SymmetricKeyWithS:
     [ Fr(~symmetricKey) ]
-    --[  ]->
-    [ !SymmetricKey($X,$Y,~symmetricKey) ]
+    --[ ConstrainKeyGenerationForUser($X) ]->
+    [ !SymmetricKeyWithS($X,~symmetricKey) ]
 
 rule Reveal_SymmetricKeyWithS:
-    [ !SymmetricKey($X,$S,~symmetricKey) ]
+    [ !SymmetricKeyWithS($X,~symmetricKey) ]
     --[  ]->
     [ Out(~symmetricKey) ]
 
@@ -42,7 +42,7 @@ rule B_ToS_SendAndForwardNonce: //B->S : B, {A,N_A,N_B}K_BS
         outgoingMessage = <$B,encryptedFirstMessage>
     in
     [ 
-        !SymmetricKey($B,$S,symmetricKey_bs),
+        !SymmetricKeyWithS($B,symmetricKey_bs),
         In(<A,nonce_a>),
         Fr(~nonce_b)
     ]
@@ -67,11 +67,12 @@ rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,K_AB,N_A,N_B}K_AS, {A,
         outgoingMessage = <encryptedSecondMessage,encryptedThirdMessage>
     in
     [ 
-        !SymmetricKey(A,S,symmetricKey_as),
-        !SymmetricKey(B,S,symmetricKey_bs),
+        !SymmetricKeyWithS(A,symmetricKey_as),
+        !SymmetricKeyWithS(B,symmetricKey_bs),
         In(incomingMessage)
     ]
     --[ 
+        SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b)
      ]->
     [ 
         Out(outgoingMessage)
@@ -89,10 +90,11 @@ rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
     in
     [ 
         State_A_first(A,nonce_a),
-        !SymmetricKey(A,S,symmetricKey_as),
+        !SymmetricKeyWithS(A,symmetricKey_as),
         In(incomingMessage)
      ]
     --[ 
+        SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b)
      ]->
     [ 
         Out(outgoingMessage)
@@ -108,15 +110,33 @@ rule B_FinalReceive:
     in
     [ 
         State_B_first(B,S,A,nonce_a,nonce_b),
-        !SymmetricKey(B,S,symmetricKey_bs),
+        !SymmetricKeyWithS(B,symmetricKey_bs),
         In(incomingMessage)
      ]
     --[ 
-        FinishedExchange(A,B,S)
+        FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b)
     ]->
     [  ]
 
-lemma executable: exists-trace
-    "All A #i . Init(A)@i ==> Ex B S #j . FinishedExchange(A,B,S)@j"
+
+restriction onlyOneKeypairWithSPerUser:
+"
+    All X #i #j . 
+        ConstrainKeyGenerationForUser(X)@i & 
+        ConstrainKeyGenerationForUser(X)@j
+            ==> #i=#j
+"
+
+
+lemma executable: 
+exists-trace
+"   All A #l . Init(A)@l ==>
+        Ex B S key_ab nonce_a nonce_b #i #j #k.
+            FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b)@i & #l<#i &
+            SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b)@j & #j<#i &
+            SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b)@k & #k<#j 
+            
+"
+
 
 end
