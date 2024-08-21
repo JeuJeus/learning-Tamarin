@@ -72,7 +72,8 @@ rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,Key_AB,Nonce_A,Nonce_B
     --[ 
         SetupReadyAtS(A,B,~key_ab,nonce_a,nonce_b),
         SecretNonceA(A,B,nonce_a),
-        SecretNonceB(A,B,nonce_b)
+        SecretNonceB(A,B,nonce_b),
+        SecretSharedKeyAB(A,B,~key_ab)
      ]->
     [ 
         Out(outgoingMessage)
@@ -96,7 +97,8 @@ rule A_ToB_Finish: //A->B : {A,Key_AB}K_BS, {Nonce_B}Key_AB
     --[ 
         SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b),
         SecretNonceA(A,B,nonce_a),
-        SecretNonceB(A,B,nonce_b)
+        SecretNonceB(A,B,nonce_b),
+        SecretSharedKeyAB(A,B,key_ab)
      ]->
     [ 
         Out(outgoingMessage)
@@ -118,7 +120,8 @@ rule B_FinalReceive:
     --[ 
         FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b),
         SecretNonceA(A,B,nonce_a),
-        SecretNonceB(A,B,nonce_b)
+        SecretNonceB(A,B,nonce_b),
+        SecretSharedKeyAB(A,B,key_ab)
     ]->
     [  ]
 
@@ -161,5 +164,15 @@ lemma secrecy_NonceB:
                 (not Ex #i . K(nonce_b)@i) |
                 (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
                 (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i) 
+"
+
+lemma secrecy_key_ab:
+"
+    All A B key_ab #j . 
+        SecretSharedKeyAB(A,B,key_ab)@j 
+            ==> 
+                (not Ex #i . K(key_ab)@i) | 
+                (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
+                (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i)  
 "
 end
