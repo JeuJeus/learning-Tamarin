@@ -20,10 +20,10 @@ rule Setup_SymmetricKeyWithS:
 
 rule Reveal_SymmetricKeyWithS:
     [ !SymmetricKeyWithS($X,~symmetricKey) ]
-    --[  ]->
+    --[ RevealedSymmetrickeyWithSAnd($X) ]->
     [ Out(~symmetricKey) ]
 
-rule A_ToB_Init: //A->B : A,N_a
+rule A_ToB_Init: //A->B : A,Nonce_A
     [ 
         Fr(~nonce_a)
     ]
@@ -35,7 +35,7 @@ rule A_ToB_Init: //A->B : A,N_a
         Out(<$A,~nonce_a>)
     ]
 
-rule B_ToS_SendAndForwardNonce: //B->S : B, {A,N_A,N_B}K_BS
+rule B_ToS_SendAndForwardNonce: //B->S : B, {A,Nonce_A,Nonce_B}K_BS
     let 
         message = <'1',A,nonce_a,~nonce_b>
         encryptedFirstMessage = senc(message,symmetricKey_bs)
@@ -53,7 +53,7 @@ rule B_ToS_SendAndForwardNonce: //B->S : B, {A,N_A,N_B}K_BS
         Out(outgoingMessage)
     ]
 
-rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,K_AB,N_A,N_B}K_AS, {A,K_AB}K_BS
+rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,Key_AB,Nonce_A,Nonce_B}K_AS, {A,Key_AB}K_BS
     let 
         decryptedFirstMessage = <'1',A,nonce_a,nonce_b>
         incomingMessage = <B,senc(decryptedFirstMessage,symmetricKey_bs)>
@@ -72,13 +72,13 @@ rule S_ToA_SessionKeyAndMessageToBeForwarded: //S->A : {B,K_AB,N_A,N_B}K_AS, {A,
         In(incomingMessage)
     ]
     --[ 
-        SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b)
+        SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b),
      ]->
     [ 
         Out(outgoingMessage)
     ]
 
-rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
+rule A_ToB_Finish: //A->B : {A,Key_AB}K_BS, {Nonce_B}Key_AB
     let 
         secondMessage = <'2',B,key_ab,nonce_a,nonce_b>
         encryptedSecondMessage = senc(secondMessage,symmetricKey_as) 
@@ -94,7 +94,7 @@ rule A_ToB_Finish: //A->B : {A,K_AB}K_BS, {N_B}K_AB
         In(incomingMessage)
      ]
     --[ 
-        SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b)
+        SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b),
      ]->
     [ 
         Out(outgoingMessage)
@@ -114,7 +114,9 @@ rule B_FinalReceive:
         In(incomingMessage)
      ]
     --[ 
-        FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b)
+        FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b),
+        SecretNonceA(A,B,nonce_a),
+        SecretNonceB(A,B,nonce_b)
     ]->
     [  ]
 
@@ -134,8 +136,29 @@ exists-trace
         Ex B S key_ab nonce_a nonce_b #i #j #k.
             FinishedExchange(A,B,S,key_ab,nonce_a,nonce_b)@i & #l<#i &
             SetupFinishedForA(A,B,key_ab,nonce_a,nonce_b)@j & #j<#i &
-            SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b)@k & #k<#j 
-            
+            SetupReadyAtS(A,B,key_ab,nonce_a,nonce_b)@k & #k<#j &
+            (not Ex #r . RevealedSymmetrickeyWithSAnd(A)@r) &
+            (not Ex #r . RevealedSymmetrickeyWithSAnd(B)@r) 
+"
+
+lemma secrecy_NonceA:
+"
+    All A B nonce_a #j . 
+        SecretNonceA(A,B,nonce_a)@j
+            ==> 
+                (not Ex #i . K(nonce_a)@i) |
+                (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
+                (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i) 
+"
+
+lemma secrecy_NonceB:
+"
+    All A B nonce_b #j . 
+        SecretNonceB(A,B,nonce_b)@j
+            ==> 
+                (not Ex #i . K(nonce_b)@i) |
+                (Ex #i . RevealedSymmetrickeyWithSAnd(A)@i) |
+                (Ex #i . RevealedSymmetrickeyWithSAnd(B)@i) 
 "
 
 
