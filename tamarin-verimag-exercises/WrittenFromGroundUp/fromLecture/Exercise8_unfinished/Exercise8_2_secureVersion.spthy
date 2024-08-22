@@ -1,7 +1,7 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: Exercise8.spthy
+ *  Model Name: Exercise8_2_secureVersion.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
@@ -10,7 +10,7 @@
  * 3. A -> B: {’4’, A, B, K}pk(B)
  */
 
-theory Exercise8
+theory Exercise8_2_secureVersion
 begin
 
 builtins: asymmetric-encryption, symmetric-encryption
@@ -40,7 +40,10 @@ rule A_Init:
         Fr(~nonce_a),
         !Publickey($B,publickey_b)
     ]
-    --[ Init($A,$B,~nonce_a) ]->
+    --[ 
+        OUT_A_1(message,encryptedMessage,$A,$B),
+        Init($A,$B,~nonce_a)
+    ]->
     [ 
         State_A_first($A,$B,~nonce_a),
         Out(encryptedMessage)
@@ -67,9 +70,12 @@ rule B_HandleMessageAndRespond:
 
     ]
     --[ 
+        IN_B_1(decryptedIncomingMessage,encryptedIncomingMessage,A,$B),
         SecretNonceA(A,$B,nonce_a),
         SecretSharedKeyAB(A,$B,~secretSharedKey_ab),
-        RunningB(A,$B,~secretSharedKey_ab)
+        RunningB(A,$B,~secretSharedKey_ab),
+        OUT_B_2(secondMessage,secondMessageEncrypted,A,$B),
+        OUT_B_3(thirdMessage,thirdMessageEncrypted,A,$B)
     ]->
     [ 
         State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
@@ -96,6 +102,8 @@ rule A_FinalReceive:
         !Publickey(B, publickey_b)
     ]
     --[ 
+        IN_A_2(secondMessageDecrypted,secondMessageEncrypted,A,B),
+        IN_A_3(thirdMessageDecrypted,thirdMessageEncrypted,A,B),
         SecretNonceA(A,B,nonce_a),
         SecretSharedKeyAB(A,B,secretSharedKey_ab),
         CommitA(A,B,secretSharedKey_ab),
@@ -124,6 +132,47 @@ rule B_FinalReceive:
         CommitB(A,B,secretSharedKey_ab)
     ]->
     []
+
+lemma origin_Messages [sources]:
+"
+    (All A B nonce_a encryptedMessage #j . 
+        IN_B_1(<'1',A,nonce_a>,encryptedMessage,A,B)@j 
+            ==> 
+                (Ex #i . 
+                    OUT_A_1(<'1',A,nonce_a>,encryptedMessage,A,B)@i &
+                    #i<#j
+                ) |
+                (Ex #i . 
+                    K(nonce_a)@i &
+                    #i<#j
+                ) |
+                (Ex #i . Leaked(B)@i)
+    ) & (All A B secretSharedKey_ab encryptedMessage #j . 
+        IN_A_2(<'2',B,secretSharedKey_ab>,encryptedMessage,A,B)@j 
+            ==> 
+                (Ex #i . 
+                    OUT_B_2(<'2',B,secretSharedKey_ab>,encryptedMessage,A,B)@i &
+                    #i<#j
+                ) |
+                (Ex #i . 
+                    K(secretSharedKey_ab)@i &
+                    #i<#j
+                ) |
+                (Ex #i . Leaked(A)@i)
+    ) & (All A B nonce_a encryptedMessage #j . 
+        IN_A_3(<'3',nonce_a>,encryptedMessage,A,B)@j 
+            ==> 
+                (Ex #i . 
+                    OUT_B_3(<'3',nonce_a>,encryptedMessage,A,B)@i &
+                    #i<#j
+                ) |
+                (Ex #i . 
+                    K(nonce_a)@i & 
+                    #i<#j
+                ) |
+                (Ex #i . Leaked(A)@i)
+    ) 
+"
 
 lemma executable:
 exists-trace

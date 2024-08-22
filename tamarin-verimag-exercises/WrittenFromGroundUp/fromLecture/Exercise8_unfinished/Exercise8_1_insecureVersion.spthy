@@ -1,0 +1,191 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise8_1_insecureVersion.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * 1. A -> B: {’1’, A, NA}pk(B)
+ * 2. A <- B: {’2’, A, K}pk(A), {’3’, NA}K
+ * 3. A -> B: {’4’, A, B, K}pk(B)
+ */
+
+theory Exercise8_1_insecureVersion
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption
+
+rule Register_Publickey:
+    let 
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[  ]->
+    [ 
+        !Privatekey($X,~privatekey),
+        !Publickey($X,publickey)
+    ]
+
+rule Leak_Privatekey:
+    [ !Privatekey($X, privatekey) ]
+    --[ Leaked($X) ]->
+    [ Out(privatekey) ]
+
+rule A_Init:
+    let
+        message = <'1',$A,~nonce_a>
+        encryptedMessage = aenc(message,publickey_b)
+    in
+    [ 
+        Fr(~nonce_a),
+        !Publickey($B,publickey_b)
+    ]
+    --[ Init($A,$B,~nonce_a) ]->
+    [ 
+        State_A_first($A,$B,~nonce_a),
+        Out(encryptedMessage)
+    ]
+
+rule B_HandleMessageAndRespond:
+    let
+        publickey_b = pk(privatekey_b) //modelling trick necessary to mitigate '[...]variables [...] not derivable [...] may be performing unintended pattern matching.'
+
+        decryptedIncomingMessage = <'1',A,nonce_a>
+        encryptedIncomingMessage = aenc(decryptedIncomingMessage,publickey_b)
+
+        secondMessage = <'2',A,~secretSharedKey_ab>
+        secondMessageEncrypted = aenc(secondMessage,publickey_a)
+        thirdMessage = <'3',nonce_a>
+        thirdMessageEncrypted = senc(thirdMessage,~secretSharedKey_ab)
+        encryptedOutgoingMessage = <secondMessageEncrypted,thirdMessageEncrypted>
+    in
+    [ 
+        In(encryptedIncomingMessage),
+        !Publickey(A,publickey_a),
+        !Privatekey($B,privatekey_b),
+        Fr(~secretSharedKey_ab)
+
+    ]
+    --[ 
+        SecretNonceA(A,$B,nonce_a),
+        SecretSharedKeyAB(A,$B,~secretSharedKey_ab),
+        RunningB(A,$B,~secretSharedKey_ab)
+    ]->
+    [ 
+        State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
+        Out(encryptedOutgoingMessage)
+    ]
+
+rule A_FinalReceive:
+    let
+        publickey_a = pk(privatekey_a)
+
+        secondMessageDecrypted = <'2',A,secretSharedKey_ab>
+        secondMessageEncrypted = aenc(secondMessageDecrypted,publickey_a)
+        thirdMessageDecrypted = <'3',nonce_a>
+        thirdMessageEncrypted = senc(thirdMessageDecrypted,secretSharedKey_ab)
+        encrptedIncomingMessage = <secondMessageEncrypted,thirdMessageEncrypted>
+
+        fourthMessage = <'4',A,$B,secretSharedKey_ab>
+        fourthMessageEncrypted = aenc(fourthMessage,publickey_b)
+    in
+    [ 
+        State_A_first(A,$B,nonce_a),
+        In(encrptedIncomingMessage),
+        !Privatekey(A,privatekey_a),
+        !Publickey($B, publickey_b)
+    ]
+    --[ 
+        SecretNonceA(A,$B,nonce_a),
+        SecretSharedKeyAB(A,$B,secretSharedKey_ab),
+        CommitA(A,$B,secretSharedKey_ab),
+        RunningA(A,$B,secretSharedKey_ab)
+    ]->
+    [ 
+        Out(fourthMessageEncrypted)
+    ]
+
+rule B_FinalReceive:
+    let
+        publickey_b = pk(privatekey_b)
+
+        fourthMessageDecrypted = <'4',A,B,secretSharedKey_ab>
+        encrptedIncomingMessage = aenc(fourthMessageDecrypted,publickey_b)
+    in
+    [ 
+        State_B_first(A,B,nonce_a,secretSharedKey_ab),
+        In(encryptedIncomingMessage),
+        !Privatekey(B,privatekey_b)
+    ]
+    --[ 
+        FinishedExchange(A,B,nonce_a,secretSharedKey_ab),
+        SecretNonceA(A,B,nonce_a),
+        SecretSharedKeyAB(A,B,secretSharedKey_ab),
+        CommitB(A,B,secretSharedKey_ab)
+    ]->
+    []
+
+lemma executable:
+exists-trace
+"
+    All A B nonce_a #i . 
+        Init(A,B,nonce_a)@i 
+            ==> Ex secretSharedKey_ab #j . 
+                FinishedExchange(A,B,nonce_a,secretSharedKey_ab)@j &
+                #i<#j
+
+"
+
+lemma secrecy_NonceA:
+"
+    All A B nonce_a #i . 
+        SecretNonceA(A,B,nonce_a)@i 
+            ==> 
+                (not Ex #j . K(nonce_a)@j) |
+                (Ex #j . Leaked(A)@j) |
+                (Ex #j . Leaked(B)@j) 
+"
+
+lemma secrecy_secretSharedKey_ab:
+"
+    All A B secretSharedKey_ab #i . 
+        SecretSharedKeyAB(A,B,secretSharedKey_ab)@i 
+            ==> 
+                (not Ex #j . K(secretSharedKey_ab)@j) |
+                (Ex #j . Leaked(A)@j) |
+                (Ex #j . Leaked(B)@j) 
+"
+
+lemma injective_agreement_a:
+"
+    All A B secretSharedKey_ab #i.
+        CommitA(A,B,secretSharedKey_ab)@i
+            ==> 
+                (
+                    Ex #j. RunningB(B,A,secretSharedKey_ab)@j & 
+                    #j<#i &
+                    not (Ex A2 B2 #i2. CommitA(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (#i2=#i))
+                ) | 
+                (
+                    Ex C #r. Leaked(C)@r
+                )
+"
+
+lemma injective_agreement_b:
+"
+    All A B secretSharedKey_ab #i.
+        CommitB(A,B,secretSharedKey_ab)@i
+            ==> 
+                (
+                    Ex #j. RunningA(B,A,secretSharedKey_ab)@j & 
+                    #j<#i &
+                    not (Ex A2 B2 #i2. CommitB(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (#i2=#i))
+                ) | 
+                (
+                    Ex C #r. Leaked(C)@r
+                )
+"
+
+end
