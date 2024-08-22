@@ -6,7 +6,7 @@
  *
  *  Comments:
  * 1. A -> B: {’1’, A, NA}pk(B)
- * 2. B -> A: {’2’, B, K}pk(A), {’3’, NA}K
+ * 2. A <- B: {’2’, B, K}pk(A), {’3’, NA}K
  * 3. A -> B: {’4’, A, B, K}pk(B)
  */
 
@@ -66,7 +66,11 @@ rule B_HandleMessageAndRespond:
         Fr(~secretSharedKey_ab)
 
     ]
-    --[  ]->
+    --[ 
+        SecretNonceA(A,$B,nonce_a),
+        SecretSharedKeyAB(A,$B,~secretSharedKey_ab),
+        RunningB(A,$B,~secretSharedKey_ab)
+    ]->
     [ 
         State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
         Out(encryptedOutgoingMessage)
@@ -90,8 +94,13 @@ rule A_FinalReceive:
         In(encrptedIncomingMessage),
         !Privatekey(A,privatekey_a),
         !Publickey(B, publickey_b)
-     ]
-    --[  ]->
+    ]
+    --[ 
+        SecretNonceA(A,B,nonce_a),
+        SecretSharedKeyAB(A,B,secretSharedKey_ab),
+        CommitA(A,B,secretSharedKey_ab),
+        RunningA(A,B,secretSharedKey_ab)
+    ]->
     [ 
         Out(fourthMessageEncrypted)
     ]
@@ -107,13 +116,14 @@ rule B_FinalReceive:
         State_B_first(A,B,nonce_a,secretSharedKey_ab),
         In(encryptedIncomingMessage),
         !Privatekey(B,privatekey_b)
-     ]
+    ]
     --[ 
         FinishedExchange(A,B,nonce_a,secretSharedKey_ab),
         SecretNonceA(A,B,nonce_a),
         SecretSharedKeyAB(A,B,secretSharedKey_ab),
+        CommitB(A,B,secretSharedKey_ab)
     ]->
-    [  ]
+    []
 
 lemma executable:
 exists-trace
@@ -144,6 +154,38 @@ lemma secrecy_secretSharedKey_ab:
                 (not Ex #j . K(secretSharedKey_ab)@j) |
                 (Ex #j . Leaked(A)@j) |
                 (Ex #j . Leaked(B)@j) 
+"
+
+lemma injective_agreement_a:
+"
+    All A B secretSharedKey_ab #i.
+        CommitA(A,B,secretSharedKey_ab)@i
+            ==> 
+                (
+                    Ex #j. RunningB(B,A,secretSharedKey_ab)@j & 
+                    #j<#i &
+                    not (Ex A2 B2 #i2. CommitA(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (#i2=#i))
+                ) | 
+                (
+                    Ex C #r. Leaked(C)@r
+                )
+"
+
+lemma injective_agreement_b:
+"
+    All A B secretSharedKey_ab #i.
+        CommitB(A,B,secretSharedKey_ab)@i
+            ==> 
+                (
+                    Ex #j. RunningA(B,A,secretSharedKey_ab)@j & 
+                    #j<#i &
+                    not (Ex A2 B2 #i2. CommitB(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (#i2=#i))
+                ) | 
+                (
+                    Ex C #r. Leaked(C)@r
+                )
 "
 
 end
