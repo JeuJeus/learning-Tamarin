@@ -1,0 +1,76 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise2.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * A : knows pk_B, generates K_AB,m_A
+ * A->B : A, aenc(K_AB, pk_B), senc(m_A,K_AB)
+ * B : knows pk_B=pk(sk_B), generates m_B
+ * A<-B : senc(m_B,K_AB)
+ * 
+ */
+
+theory exercise2
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption
+
+rule RegisterKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[  ]->
+    [ 
+        !Publickey($X,publickey),
+        !Privatekey($X,~privatekey),
+        Out(publickey)
+    ]
+
+rule A_ToB:
+    let
+        encryptedSymmetricKeyMessage = aenc(~symmetricKey_AB,publickey_B)
+        encryptedNonceMessage = senc(~nonce_A,~symmetricKey_AB)
+        outgoingMessage = <$A, encryptedSymmetricKeyMessage, encryptedNonceMessage>
+    in
+    [ 
+        !Publickey($B,publickey_B),
+        Fr(~symmetricKey_AB),
+        Fr(~nonce_A)
+
+    ]
+    --[ Init($A,$B, ~nonce_A) ]->
+    [ Out(outgoingMessage) ]
+
+rule B_ReceiveAndRespond_ToA:
+    let
+        publickey_B = pk(privatekey_B)
+
+        encryptedSymmetricKeyMessage = aenc(symmetricKey_AB,publickey_B)
+        encryptedNonceMessage = senc(nonce_A,symmetricKey_AB)
+        incomingMessage = <A, encryptedSymmetricKeyMessage, encryptedNonceMessage>
+
+        outgoingMessage = senc(~nonce_B,symmetricKey_AB)
+    in
+    [ 
+        In(incomingMessage),
+        !Privatekey($B, privatekey_B),
+        Fr(~nonce_B)
+    ]
+    --[ Finish(A,$B,nonce_A,~nonce_B) ]->
+    [ 
+        Out(outgoingMessage)
+    ]
+
+lemma executable:
+exists-trace
+"
+    All A B nonce_A nonce_B #i . 
+        Finish(A,B,nonce_A,nonce_B)@i 
+            ==> 
+                Ex #j . Init(A,B,nonce_A)@j    
+"
+
+end
