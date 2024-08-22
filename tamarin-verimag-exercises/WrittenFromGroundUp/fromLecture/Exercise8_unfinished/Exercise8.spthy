@@ -103,7 +103,10 @@ rule B_FinalReceive:
         In(encryptedIncomingMessage),
         !Privatekey(B,privatekey_b)
      ]
-    --[ FinishedExchange(A,B,nonce_a,secretSharedKey_ab) ]->
+    --[ 
+        FinishedExchange(A,B,nonce_a,secretSharedKey_ab),
+        SecretNonceA(A,B,nonce_a) 
+    ]->
     [  ]
 
 lemma executable:
@@ -115,5 +118,10 @@ exists-trace
                 FinishedExchange(A,B,nonce_a,secretSharedKey_ab)@j &
                 #i<#j
 
+"
+
+lemma secrecy_NonceA:
+"
+    All A B nonce_a #i . SecretNonceA(A,B,nonce_a)@i ==> not Ex #j . K(nonce_a)@j
 "
 end
