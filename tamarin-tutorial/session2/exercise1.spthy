@@ -1,0 +1,77 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise1.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: ignoring existing skeleton file
+ * A->B : {m_A}K_AB
+ * B->A : {m_B}K_AB
+ */
+
+theory exercise1
+begin
+
+builtins: symmetric-encryption
+
+rule Setup_SymmetricKey:
+    [ Fr(~sharedSymmetricKey) ]
+    --[OneKey(~sharedSymmetricKey)]->
+    [ !SymmetricKey(~sharedSymmetricKey) ]
+
+rule A_createAndSendRandomNumber_ToB:
+    let
+        encrypted_m_a = senc(~m_A,sharedKey)
+    in
+    [ 
+        !SymmetricKey(sharedKey),
+        Fr(~m_A)
+     ]
+    --[ Init(~m_A) ]->
+    [ 
+        Out(encrypted_m_a),
+        State_A_first($A,$B,~m_A)
+    ]
+
+rule B_ReceiveAndRespond_ToA:
+    let
+        incomingMessage = senc(m_A,sharedKey)
+        encrypted_m_b = senc(~m_B,sharedKey)
+    in
+    [ 
+        In(incomingMessage),
+        !SymmetricKey(sharedKey),
+        Fr(~m_B)
+     ]
+    --[ FinishB($A,$B,m_A,~m_B) ]->
+    [ 
+        Out(encrypted_m_b) 
+    ]
+
+rule A_FinalReceive:
+    let
+        incomingMessage = senc(m_B,sharedKey)
+    in
+    [ 
+        In(incomingMessage),
+        !SymmetricKey(sharedKey),
+        State_A_first(A,B,m_A)
+     ]
+    --[ FinishA(A,B,m_A,m_B) ]->
+    [  ]
+
+restriction only_one_unique_key_exists:
+"
+    All x #i #j. 
+        OneKey(x)@i &
+        OneKey(x)@j 
+            ==> 
+                #i=#j"
+    
+lemma executable:
+exists-trace
+"
+    Ex A B m_A m_B #i #j . FinishB(A,B,m_A,m_B)@i & FinishA(A,B,m_A,m_B)@j
+"
+
+end
