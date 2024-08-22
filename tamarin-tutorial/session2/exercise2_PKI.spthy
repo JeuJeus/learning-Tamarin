@@ -42,7 +42,10 @@ rule A_ToB:
 
     ]
     --[ Init($A,$B, ~nonce_A) ]->
-    [ Out(outgoingMessage) ]
+    [ 
+        Out(outgoingMessage),
+        State_A_first($A,$B,~nonce_A,~symmetricKey_AB)
+    ]
 
 rule B_ReceiveAndRespond_ToA:
     let
@@ -59,18 +62,40 @@ rule B_ReceiveAndRespond_ToA:
         !Privatekey($B, privatekey_B),
         Fr(~nonce_B)
     ]
-    --[ Finish(A,$B,nonce_A,~nonce_B) ]->
+    --[ SecretmA(A,$B,nonce_A) ]->
+    [ Out(outgoingMessage) ]
+
+rule A_FinalReceive:
+    let
+        incomingMessage = senc(nonce_B,symmetricKey_AB)
+    in
     [ 
-        Out(outgoingMessage)
-    ]
+        State_A_first(A,B,nonce_A,symmetricKey_AB),
+        In(incomingMessage)
+     ]
+    --[ 
+        Finish(A,B,nonce_A,nonce_B,symmetricKey_AB),
+        SecretmB(A,B,nonce_B)
+    ]->
+    [  ]
 
 lemma executable:
 exists-trace
 "
-    All A B nonce_A nonce_B #i . 
-        Finish(A,B,nonce_A,nonce_B)@i 
+    All A B nonce_A nonce_B symmetricKey_AB#i . 
+        Finish(A,B,nonce_A,nonce_B,symmetricKey_AB)@i 
             ==> 
                 Ex #j . Init(A,B,nonce_A)@j    
+"
+
+lemma secrecy_m_A:
+"
+    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> not Ex #j . K(nonce_A)
+"
+
+lemma secrecy_m_B:
+"
+    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==> not Ex #j . K(nonce_B)
 "
 
 end
