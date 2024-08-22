@@ -110,7 +110,8 @@ rule B_FinalReceive:
      ]
     --[ 
         FinishedExchange(A,B,nonce_a,secretSharedKey_ab),
-        SecretNonceA(A,B,nonce_a) 
+        SecretNonceA(A,B,nonce_a),
+        SecretSharedKeyAB(A,B,secretSharedKey_ab),
     ]->
     [  ]
 
@@ -134,4 +135,15 @@ lemma secrecy_NonceA:
                 (Ex #j . Leaked(A)@j) |
                 (Ex #j . Leaked(B)@j) 
 "
+
+lemma secrecy_secretSharedKey_ab:
+"
+    All A B secretSharedKey_ab #i . 
+        SecretSharedKeyAB(A,B,secretSharedKey_ab)@i 
+            ==> 
+                (not Ex #j . K(secretSharedKey_ab)@j) |
+                (Ex #j . Leaked(A)@j) |
+                (Ex #j . Leaked(B)@j) 
+"
+
 end
