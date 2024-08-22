@@ -121,10 +121,26 @@ rule B_3_recv:
 
 
 lemma types [sources]:
-  " (All na m1 #i. Recv1(na,  m1) @ i ==>  ((Ex #j. KU(na) @ j &  j < i) | (Ex #j. Send1(m1) @ j & j<i)))
-  & (All na k m2A1 m2A2 #i. Recv2(na, k, m2A1, m2A2) @ i ==> 
-     ((Ex #r. KU(k) @ r   & r < i) | (Ex  #j m22. Send2(m2A1, m22) @ j & j<i) ) &
-     ((Ex #r #rp. KU(k) @ r   & r < i & KU(na) @ rp   & rp < i) | (Ex  #j m21. Send2(m21, m2A2) @ j & j<i) )                                                         )
+  " 
+    (All na m1 #i. 
+        Recv1(na,  m1) @ i 
+            ==>  
+                (
+                    (Ex #j. KU(na) @ j &  j < i) | 
+                    (Ex #j. Send1(m1) @ j & j<i))
+    ) & 
+    (All na k m2A1 m2A2 #i. 
+        Recv2(na, k, m2A1, m2A2) @ i 
+            ==> 
+                (
+                    (Ex #r. KU(k) @ r   & r < i) | 
+                    (Ex  #j m22. Send2(m2A1, m22) @ j & j<i) 
+                ) &
+                (
+                    (Ex #r #rp. KU(k) @ r   & r < i & KU(na) @ rp   & rp < i) | 
+                    (Ex  #j m21. Send2(m21, m2A2) @ j & j<i) 
+                )                                                         
+    )
  /*  & (All  k m3B #i. Recv3(k, m3B) @ i ==> 
     (Ex #j. KU(k) @ j   & j < i) | (Ex  #j. Send3(m3B) @ j & j<i))  */
 "

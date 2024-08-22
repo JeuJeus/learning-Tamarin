@@ -41,7 +41,10 @@ rule A_Init:
         Fr(~nonce_a),
         !Publickey($B,publickey_b)
     ]
-    --[ Init($A,$B,~nonce_a) ]->
+    --[ 
+        Init($A,$B,~nonce_a),
+        OUT_A_1(~nonce_a,message)
+    ]->
     [ 
         State_A_first($A,$B,~nonce_a),
         Out(encryptedMessage)
@@ -70,7 +73,10 @@ rule B_HandleMessageAndRespond:
     --[ 
         SecretNonceA(A,$B,nonce_a),
         SecretSharedKeyAB(A,$B,~secretSharedKey_ab),
-        RunningB(A,$B,~secretSharedKey_ab)
+        RunningB(A,$B,~secretSharedKey_ab),
+        IN_B_1(nonce_a,decryptedIncomingMessage),
+        OUT_B_2(~secretSharedKey_ab,secondMessage),
+        OUT_B_3(nonce_a,thirdMessage)
     ]->
     [ 
         State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
@@ -100,7 +106,8 @@ rule A_FinalReceive:
         SecretNonceA(A,$B,nonce_a),
         SecretSharedKeyAB(A,$B,secretSharedKey_ab),
         CommitA(A,$B,secretSharedKey_ab),
-        RunningA(A,$B,secretSharedKey_ab)
+        RunningA(A,$B,secretSharedKey_ab),
+        IN_A_23(nonce_a,secretSharedKey_ab,secondMessageDecrypted,thirdMessageDecrypted)
     ]->
     [ 
         Out(fourthMessageEncrypted)
@@ -125,6 +132,47 @@ rule B_FinalReceive:
         CommitB(A,B,secretSharedKey_ab)
     ]->
     []
+
+lemma types [sources]:
+"
+    (All nonce_a message_first #i . 
+        IN_B_1(nonce_a,message_first)@i 
+            ==> 
+                (Ex #j . 
+                    OUT_A_1(nonce_a,message_first)@j & 
+                    #j<#i
+                ) |
+                (Ex #j . 
+                    KU(nonce_a)@j & 
+                    #j<#i
+                ) 
+            
+    ) &
+    (All nonce_a secretSharedKey_ab message_second message_third #i .
+        IN_A_23(nonce_a,secretSharedKey_ab,message_second,message_third)@i 
+            ==> 
+                (
+                    (Ex #j . 
+                        OUT_B_2(secretSharedKey_ab,message_second)@j & 
+                        #j<#i
+                    ) |
+                    (Ex #j . 
+                        KU(secretSharedKey_ab)@j & 
+                        #j<#i
+                    )
+                ) & (
+                    (Ex #j . 
+                        OUT_B_3(nonce_a,message_third)@j & 
+                        #j<#i
+                    ) |
+                    (Ex #j #k . 
+                        KU(nonce_a)@j & 
+                        KU(secretSharedKey_ab)@k & 
+                        #j<#i & 
+                        #k<#i
+                    )
+                ))
+"
 
 lemma executable:
 exists-trace
