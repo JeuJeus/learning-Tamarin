@@ -43,7 +43,10 @@ rule B_ReceiveAndRespond_ToA:
         !SymmetricKey(sharedKey),
         Fr(~m_B)
      ]
-    --[ FinishB($A,$B,m_A,~m_B) ]->
+    --[ 
+        FinishB($A,$B,m_A,~m_B),
+        SecretmA($A,$B,m_A) 
+    ]->
     [ 
         Out(encrypted_m_b) 
     ]
@@ -57,7 +60,10 @@ rule A_FinalReceive:
         !SymmetricKey(sharedKey),
         State_A_first(A,B,m_A)
      ]
-    --[ FinishA(A,B,m_A,m_B) ]->
+    --[ 
+        FinishA(A,B,m_A,m_B),
+        SecretmB(A,B,m_B) 
+    ]->
     [  ]
 
 restriction only_one_unique_key_exists:
@@ -72,6 +78,16 @@ lemma executable:
 exists-trace
 "
     Ex A B m_A m_B #i #j . FinishB(A,B,m_A,m_B)@i & FinishA(A,B,m_A,m_B)@j
+"
+
+lemma secrecy_m_A:
+"
+    All A B m_A #i . SecretmA(A,B,m_A)@i ==> not Ex #j . K(m_A)@j
+"
+
+lemma secrecy_m_B:
+"
+    All A B m_B #i . SecretmB(A,B,m_B)@i ==> not Ex #j . K(m_B)@j
 "
 
 end
