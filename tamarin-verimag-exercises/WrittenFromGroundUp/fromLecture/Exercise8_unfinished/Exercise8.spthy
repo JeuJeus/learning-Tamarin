@@ -127,6 +127,11 @@ exists-trace
 
 lemma secrecy_NonceA:
 "
-    All A B nonce_a #i . SecretNonceA(A,B,nonce_a)@i ==> not Ex #j . K(nonce_a)@j
+    All A B nonce_a #i . 
+        SecretNonceA(A,B,nonce_a)@i 
+            ==> 
+                (not Ex #j . K(nonce_a)@j) |
+                (Ex #j . Leaked(A)@j) |
+                (Ex #j . Leaked(B)@j) 
 "
 end
