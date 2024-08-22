@@ -23,7 +23,8 @@ rule Register_Publickey:
     --[  ]->
     [ 
         !Privatekey($X,~privatekey),
-        !Publickey($X,publickey)
+        !Publickey($X,publickey),
+        Out(publickey)
     ]
 
 rule Leak_Privatekey:
