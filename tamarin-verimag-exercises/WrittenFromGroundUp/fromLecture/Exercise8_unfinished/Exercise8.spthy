@@ -26,6 +26,11 @@ rule Register_Publickey:
         !Publickey($X,publickey)
     ]
 
+rule Leak_Privatekey:
+    [ !Privatekey($X, privatekey) ]
+    --[ Leaked($X) ]->
+    [ Out(privatekey) ]
+
 rule A_Init:
     let
         message = <'1',$A,~nonce_a>
