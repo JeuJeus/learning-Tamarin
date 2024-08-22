@@ -41,7 +41,7 @@ rule A_Init:
         !Publickey($B,publickey_b)
     ]
     --[ 
-        OUT_A_1(message,encryptedMessage,$A,$B),
+        OUT_A_1(~nonce_a,message),
         Init($A,$B,~nonce_a)
     ]->
     [ 
@@ -70,12 +70,12 @@ rule B_HandleMessageAndRespond:
 
     ]
     --[ 
-        IN_B_1(decryptedIncomingMessage,encryptedIncomingMessage,A,$B),
+        IN_B_1(nonce_a,decryptedIncomingMessage),
         SecretNonceA(A,$B,nonce_a),
         SecretSharedKeyAB(A,$B,~secretSharedKey_ab),
-        RunningB(A,$B,~secretSharedKey_ab),
-        OUT_B_2(secondMessage,secondMessageEncrypted,A,$B),
-        OUT_B_3(thirdMessage,thirdMessageEncrypted,A,$B)
+        RunningB(A,$B,nonce_a,~secretSharedKey_ab),
+        OUT_B_2(~secretSharedKey_ab,secondMessage),
+        OUT_B_3(nonce_a,thirdMessage)
     ]->
     [ 
         State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
@@ -102,12 +102,12 @@ rule A_FinalReceive:
         !Publickey(B, publickey_b)
     ]
     --[ 
-        IN_A_2(secondMessageDecrypted,secondMessageEncrypted,A,B),
-        IN_A_3(thirdMessageDecrypted,thirdMessageEncrypted,A,B),
+        IN_A_23(nonce_a,secretSharedKey_ab,secondMessageDecrypted,thirdMessageDecrypted),
         SecretNonceA(A,B,nonce_a),
         SecretSharedKeyAB(A,B,secretSharedKey_ab),
-        CommitA(A,B,secretSharedKey_ab),
-        RunningA(A,B,secretSharedKey_ab)
+        CommitA(A,B,nonce_a,secretSharedKey_ab),
+        RunningA(A,B,nonce_a,secretSharedKey_ab),
+        OUT_A_4(secretSharedKey_ab,fourthMessage)
     ]->
     [ 
         Out(fourthMessageEncrypted)
@@ -118,7 +118,7 @@ rule B_FinalReceive:
         publickey_b = pk(privatekey_b)
 
         fourthMessageDecrypted = <'4',A,B,secretSharedKey_ab>
-        encrptedIncomingMessage = aenc(fourthMessageDecrypted,publickey_b)
+        encryptedIncomingMessage = aenc(fourthMessageDecrypted,publickey_b)
     in
     [ 
         State_B_first(A,B,nonce_a,secretSharedKey_ab),
@@ -126,53 +126,42 @@ rule B_FinalReceive:
         !Privatekey(B,privatekey_b)
     ]
     --[ 
+        IN_B_4(secretSharedKey_ab,fourthMessageDecrypted),
         FinishedExchange(A,B,nonce_a,secretSharedKey_ab),
         SecretNonceA(A,B,nonce_a),
         SecretSharedKeyAB(A,B,secretSharedKey_ab),
-        CommitB(A,B,secretSharedKey_ab)
+        CommitB(A,B,nonce_a,secretSharedKey_ab)
     ]->
     []
 
-lemma origin_Messages [sources]:
-"
-    (All A B nonce_a encryptedMessage #j . 
-        IN_B_1(<'1',A,nonce_a>,encryptedMessage,A,B)@j 
-            ==> 
-                (Ex #i . 
-                    OUT_A_1(<'1',A,nonce_a>,encryptedMessage,A,B)@i &
-                    #i<#j
-                ) |
-                (Ex #i . 
-                    K(nonce_a)@i &
-                    #i<#j
-                ) |
-                (Ex #i . Leaked(B)@i)
-    ) & (All A B secretSharedKey_ab encryptedMessage #j . 
-        IN_A_2(<'2',B,secretSharedKey_ab>,encryptedMessage,A,B)@j 
-            ==> 
-                (Ex #i . 
-                    OUT_B_2(<'2',B,secretSharedKey_ab>,encryptedMessage,A,B)@i &
-                    #i<#j
-                ) |
-                (Ex #i . 
-                    K(secretSharedKey_ab)@i &
-                    #i<#j
-                ) |
-                (Ex #i . Leaked(A)@i)
-    ) & (All A B nonce_a encryptedMessage #j . 
-        IN_A_3(<'3',nonce_a>,encryptedMessage,A,B)@j 
-            ==> 
-                (Ex #i . 
-                    OUT_B_3(<'3',nonce_a>,encryptedMessage,A,B)@i &
-                    #i<#j
-                ) |
-                (Ex #i . 
-                    K(nonce_a)@i & 
-                    #i<#j
-                ) |
-                (Ex #i . Leaked(A)@i)
-    ) 
-"
+    lemma types [sources]:
+    "
+        (All nonce_a message_first #i . 
+            IN_B_1(nonce_a,message_first)@i 
+                ==> 
+                    (Ex #j . OUT_A_1(nonce_a,message_first)@j & #j<#i) |
+                    (Ex #j . KU(nonce_a)@j & #j<#i) 
+                
+        ) &
+        (All nonce_a secretSharedKey_ab message_second message_third #i .
+            IN_A_23(nonce_a,secretSharedKey_ab,message_second,message_third)@i 
+                ==> 
+                    (
+                        (Ex #j . OUT_B_2(secretSharedKey_ab,message_second)@j & #j<#i) |
+                        (Ex #j . KU(secretSharedKey_ab)@j & #j<#i)
+                    ) & (
+                        (Ex #j . OUT_B_3(nonce_a,message_third)@j & #j<#i) |
+                        (Ex #j #k . KU(nonce_a)@j & KU(secretSharedKey_ab)@k & #j<#i & #k<#i)
+                    )
+        ) &
+        (All secretSharedKey_ab message_fourth #i . 
+            IN_B_4(secretSharedKey_ab,message_fourth)@i
+                ==>
+                    (Ex #j . OUT_A_4(secretSharedKey_ab,message_fourth)@j & #j<#i) |
+                    (Ex #j . KU(secretSharedKey_ab)@j & #j<#i)
+        )
+        
+    "
 
 lemma executable:
 exists-trace
@@ -207,13 +196,13 @@ lemma secrecy_secretSharedKey_ab:
 
 lemma injective_agreement_a:
 "
-    All A B secretSharedKey_ab #i.
-        CommitA(A,B,secretSharedKey_ab)@i
+    All A B nonce_a secretSharedKey_ab #i.
+        CommitA(A,B,nonce_a,secretSharedKey_ab)@i
             ==> 
                 (
-                    Ex #j. RunningB(B,A,secretSharedKey_ab)@j & 
+                    Ex #j. RunningB(A,B,nonce_a,secretSharedKey_ab)@j & 
                     #j<#i &
-                    not (Ex A2 B2 #i2. CommitA(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (Ex A2 B2 #i2. CommitA(A2,B2,nonce_a,secretSharedKey_ab)@i2 & 
                     not (#i2=#i))
                 ) | 
                 (
@@ -223,13 +212,13 @@ lemma injective_agreement_a:
 
 lemma injective_agreement_b:
 "
-    All A B secretSharedKey_ab #i.
-        CommitB(A,B,secretSharedKey_ab)@i
+    All A B nonce_a secretSharedKey_ab #i.
+        CommitB(A,B,nonce_a,secretSharedKey_ab)@i
             ==> 
                 (
-                    Ex #j. RunningA(B,A,secretSharedKey_ab)@j & 
+                    Ex #j. RunningA(A,B,nonce_a,secretSharedKey_ab)@j & 
                     #j<#i &
-                    not (Ex A2 B2 #i2. CommitB(A2,B2,secretSharedKey_ab)@i2 & 
+                    not (Ex A2 B2 #i2. CommitB(A2,B2,nonce_a,secretSharedKey_ab)@i2 & 
                     not (#i2=#i))
                 ) | 
                 (
