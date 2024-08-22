@@ -1,0 +1,119 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: Exercise8.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * 1. A -> B: {’1’, A, NA}pk(B)
+ * 2. B -> A: {’2’, B, K}pk(A), {’3’, NA}K
+ * 3. A -> B: {’4’, A, B, K}pk(B)
+ */
+
+theory Exercise8
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption
+
+rule Register_Publickey:
+    let 
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[  ]->
+    [ 
+        !Privatekey($X,~privatekey),
+        !Publickey($X,publickey)
+    ]
+
+rule A_Init:
+    let
+        message = <'1',$A,~nonce_a>
+        encryptedMessage = aenc(message,publickey_b)
+    in
+    [ 
+        Fr(~nonce_a),
+        !Publickey($B,publickey_b)
+    ]
+    --[ Init($A,$B,~nonce_a) ]->
+    [ 
+        State_A_first($A,$B,~nonce_a),
+        Out(encryptedMessage)
+    ]
+
+rule B_HandleMessageAndRespond:
+    let
+        publickey_b = pk(privatekey_b) //modelling trick necessary to mitigate '[...]variables [...] not derivable [...] may be performing unintended pattern matching.'
+
+        decryptedIncomingMessage = <'1',A,nonce_a>
+        encryptedIncomingMessage = aenc(decryptedIncomingMessage,publickey_b)
+
+        secondMessage = <'2',$B,~secretSharedKey_ab>
+        secondMessageEncrypted = aenc(secondMessage,publickey_a)
+        thirdMessage = <'3',nonce_a>
+        thirdMessageEncrypted = senc(thirdMessage,~secretSharedKey_ab)
+        encryptedOutgoingMessage = <secondMessageEncrypted,thirdMessageEncrypted>
+    in
+    [ 
+        In(encryptedIncomingMessage),
+        !Publickey(A,publickey_a),
+        !Privatekey($B,privatekey_b),
+        Fr(~secretSharedKey_ab)
+
+    ]
+    --[  ]->
+    [ 
+        State_B_first(A,$B,nonce_a,~secretSharedKey_ab),
+        Out(encryptedOutgoingMessage)
+    ]
+
+rule A_FinalReceive:
+    let
+        publickey_a = pk(privatekey_a)
+
+        secondMessageDecrypted = <'2',B,secretSharedKey_ab>
+        secondMessageEncrypted = aenc(secondMessageDecrypted,publickey_a)
+        thirdMessageDecrypted = <'3',nonce_a>
+        thirdMessageEncrypted = senc(thirdMessageDecrypted,secretSharedKey_ab)
+        encrptedIncomingMessage = <secondMessageEncrypted,thirdMessageEncrypted>
+
+        fourthMessage = <'4',A,B,secretSharedKey_ab>
+        fourthMessageEncrypted = aenc(fourthMessage,publickey_b)
+    in
+    [ 
+        State_A_first(A,B,nonce_a),
+        In(encrptedIncomingMessage),
+        !Privatekey(A,privatekey_a),
+        !Publickey(B, publickey_b)
+     ]
+    --[  ]->
+    [ 
+        Out(fourthMessageEncrypted)
+    ]
+
+rule B_FinalReceive:
+    let
+        publickey_b = pk(privatekey_b)
+
+        fourthMessageDecrypted = <'4',A,B,secretSharedKey_ab>
+        encrptedIncomingMessage = aenc(fourthMessageDecrypted,publickey_b)
+    in
+    [ 
+        State_B_first(A,B,nonce_a,secretSharedKey_ab),
+        In(encryptedIncomingMessage),
+        !Privatekey(B,privatekey_b)
+     ]
+    --[ FinishedExchange(A,B,nonce_a,secretSharedKey_ab) ]->
+    [  ]
+
+lemma executable:
+exists-trace
+"
+    All A B nonce_a #i . 
+        Init(A,B,nonce_a)@i 
+            ==> Ex secretSharedKey_ab #j . 
+                FinishedExchange(A,B,nonce_a,secretSharedKey_ab)@j &
+                #i<#j
+
+"
+end
