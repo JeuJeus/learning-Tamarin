@@ -1,0 +1,127 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise3.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * A : knows sk_A, generates K_AB,m_A
+ * A->B : A, aenc(K_AB, pk_B), senc(<m_A,sign(m_A,sk_A)>,K_AB)
+ * B : knows pk_B=pk(sk_B), generates m_B, verifies signature
+ * A<-B : senc(m_B,K_AB)
+ * 
+ */
+
+theory exercise3
+begin
+
+builtins: asymmetric-encryption, symmetric-encryption, signing
+
+rule RegisterKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[  ]->
+    [ 
+        !Publickey($X,publickey),
+        !Privatekey($X,~privatekey),
+        Out(publickey)
+    ]
+rule RegisterSigningKeyAtPKI:
+    let
+        publicVerificationKey = pk(~privateSigningKey)
+    in
+    [ Fr(~privateSigningKey) ]
+    --[  ]->
+    [ 
+        !PublicVerificationKey($X,publicVerificationKey),
+        !PrivateSigningkey($X,~privateSigningKey),
+        Out(publicVerificationKey)
+    ]
+
+rule A_ToB:
+    let
+        encryptedSymmetricKeyMessage = aenc(~symmetricKey_AB,publickey_B)
+
+        signatureNonceA = sign(~nonce_A, privateSigningKey_A)
+        nonceAAndSignature = <~nonce_A,signatureNonceA>
+        encryptedSignedNonceMessage = senc(nonceAAndSignature,~symmetricKey_AB)
+        
+        outgoingMessage = <$A, encryptedSymmetricKeyMessage, encryptedSignedNonceMessage>
+    in
+    [ 
+        !Publickey($B,publickey_B),
+        !PrivateSigningkey($A,privateSigningKey_A),
+        Fr(~symmetricKey_AB),
+        Fr(~nonce_A)
+
+    ]
+    --[ Init($A,$B, ~nonce_A) ]->
+    [ 
+        Out(outgoingMessage),
+        State_A_first($A,$B,~nonce_A,~symmetricKey_AB)
+    ]
+
+rule B_ReceiveAndRespond_ToA:
+    let
+        publickey_B = pk(privatekey_B)
+
+        encryptedSymmetricKeyMessage = aenc(symmetricKey_AB,publickey_B)
+
+        nonceAAndSignature = <nonce_A,signatureNonceA>
+        encryptedSignedNonceMessage = senc(nonceAAndSignature,symmetricKey_AB)
+
+        incomingMessage = <A, encryptedSymmetricKeyMessage, encryptedSignedNonceMessage>
+
+        outgoingMessage = senc(~nonce_B,symmetricKey_AB)
+    in
+    [ 
+        In(incomingMessage),
+        !Privatekey($B, privatekey_B),
+        !PublicVerificationKey(A,publicVerificationKey_A),
+        Fr(~nonce_B)
+    ]
+    --[ 
+        SecretmA(A,$B,nonce_A),
+        ValidSignature(verify(signatureNonceA,nonce_A,publicVerificationKey_A))
+    ]->
+    [ Out(outgoingMessage) ]
+
+rule A_FinalReceive:
+    let
+        incomingMessage = senc(nonce_B,symmetricKey_AB)
+    in
+    [ 
+        State_A_first(A,B,nonce_A,symmetricKey_AB),
+        In(incomingMessage)
+     ]
+    --[ 
+        Finish(A,B,nonce_A,nonce_B,symmetricKey_AB),
+        SecretmB(A,B,nonce_B)
+    ]->
+    [  ]
+
+restriction validSignature:
+    "All x #i. ValidSignature(x)@i ==> x=true"
+
+lemma executable:
+exists-trace
+"
+    All A B nonce_A nonce_B symmetricKey_AB#i . 
+        Finish(A,B,nonce_A,nonce_B,symmetricKey_AB)@i 
+            ==> 
+                Ex #j . Init(A,B,nonce_A)@j    
+"
+
+lemma secrecy_m_A:
+"
+    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> not Ex #j . K(nonce_A)@j
+"
+
+lemma secrecy_m_B: //does not hold anymore as expected
+"
+    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==> not Ex #j . K(nonce_B)@j
+"
+
+end
