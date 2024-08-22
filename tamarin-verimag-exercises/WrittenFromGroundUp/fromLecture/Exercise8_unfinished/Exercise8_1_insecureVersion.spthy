@@ -138,40 +138,21 @@ lemma types [sources]:
     (All nonce_a message_first #i . 
         IN_B_1(nonce_a,message_first)@i 
             ==> 
-                (Ex #j . 
-                    OUT_A_1(nonce_a,message_first)@j & 
-                    #j<#i
-                ) |
-                (Ex #j . 
-                    KU(nonce_a)@j & 
-                    #j<#i
-                ) 
+                (Ex #j . OUT_A_1(nonce_a,message_first)@j & #j<#i) |
+                (Ex #j . KU(nonce_a)@j & #j<#i) 
             
     ) &
     (All nonce_a secretSharedKey_ab message_second message_third #i .
         IN_A_23(nonce_a,secretSharedKey_ab,message_second,message_third)@i 
             ==> 
                 (
-                    (Ex #j . 
-                        OUT_B_2(secretSharedKey_ab,message_second)@j & 
-                        #j<#i
-                    ) |
-                    (Ex #j . 
-                        KU(secretSharedKey_ab)@j & 
-                        #j<#i
-                    )
+                    (Ex #j . OUT_B_2(secretSharedKey_ab,message_second)@j & #j<#i) |
+                    (Ex #j . KU(secretSharedKey_ab)@j & #j<#i)
                 ) & (
-                    (Ex #j . 
-                        OUT_B_3(nonce_a,message_third)@j & 
-                        #j<#i
-                    ) |
-                    (Ex #j #k . 
-                        KU(nonce_a)@j & 
-                        KU(secretSharedKey_ab)@k & 
-                        #j<#i & 
-                        #k<#i
-                    )
-                ))
+                    (Ex #j . OUT_B_3(nonce_a,message_third)@j & #j<#i) |
+                    (Ex #j #k . KU(nonce_a)@j & KU(secretSharedKey_ab)@k & #j<#i & #k<#i)
+                )
+    )
 "
 
 lemma executable:
