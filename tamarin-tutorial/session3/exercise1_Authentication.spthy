@@ -1,7 +1,7 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: exercise3.spthy
+ *  Model Name: exercise1.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
@@ -12,7 +12,7 @@
  * 
  */
 
-theory exercise3
+theory exercise1
 begin
 
 builtins: asymmetric-encryption, symmetric-encryption, signing
@@ -28,11 +28,6 @@ rule RegisterKeyAtPKI:
         !Privatekey($X,~privatekey),
         Out(publickey)
     ]
-
-rule RevealPrivatekey:
-    [ !Privatekey($X,privatekey) ]
-    --[ Reveal($X) ]->
-    [ Out(privatekey) ]
 
 rule RegisterSigningKeyAtPKI:
     let
