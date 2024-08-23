@@ -77,7 +77,7 @@ rule B_ReceiveAndRespond_ToA:
 
         encryptedSymmetricKeyMessage = aenc(symmetricKey_AB,publickey_B)
 
-        nonceAAndSignature = <nonce_A,signatureNonceA>
+        nonceAAndSignature = <~nonce_A,~signatureNonceA>
         encryptedSignedNonceMessage = senc(nonceAAndSignature,symmetricKey_AB)
 
         incomingMessage = <A, encryptedSymmetricKeyMessage, encryptedSignedNonceMessage>
@@ -91,8 +91,8 @@ rule B_ReceiveAndRespond_ToA:
         Fr(~nonce_B)
     ]
     --[ 
-        SecretmA(A,$B,nonce_A),
-        ValidSignature(verify(signatureNonceA,nonce_A,publicVerificationKey_A)),
+        SecretmA(A,$B,~nonce_A),
+        ValidSignature(verify(~signatureNonceA,~nonce_A,publicVerificationKey_A)),
         AuthenticA(A,$B,symmetricKey_AB,nonceAAndSignature),
         SendB(A,$B,~nonce_B)
     ]->
