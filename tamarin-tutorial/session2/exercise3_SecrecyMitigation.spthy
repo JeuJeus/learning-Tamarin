@@ -22,7 +22,7 @@ rule RegisterKeyAtPKI:
         publickey = pk(~privatekey)
     in
     [ Fr(~privatekey) ]
-    --[  ]->
+    -->
     [ 
         !Publickey($X,publickey),
         !Privatekey($X,~privatekey),

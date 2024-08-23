@@ -11,24 +11,28 @@
  * A<-B : senc(m_B,K_AB)
  * 
  */
-
-theory exercise1
+theory exercise3
 begin
-
+ 
 builtins: asymmetric-encryption, symmetric-encryption, signing
-
+ 
 rule RegisterKeyAtPKI:
     let
         publickey = pk(~privatekey)
     in
     [ Fr(~privatekey) ]
-    --[  ]->
+    -->
     [ 
         !Publickey($X,publickey),
         !Privatekey($X,~privatekey),
         Out(publickey)
     ]
-
+ 
+rule RevealPrivatekey:
+    [ !Privatekey($X,privatekey) ]
+    --[ Reveal($X) ]->
+    [ Out(privatekey) ]
+ 
 rule RegisterSigningKeyAtPKI:
     let
         publicVerificationKey = pk(~privateSigningKey)
@@ -40,7 +44,7 @@ rule RegisterSigningKeyAtPKI:
         !PrivateSigningkey($X,~privateSigningKey),
         Out(publicVerificationKey)
     ]
-
+ 
 rule A_ToB:
     let
         encryptedSymmetricKeyMessage = aenc(~symmetricKey_AB,publickey_B)
@@ -58,7 +62,10 @@ rule A_ToB:
         Fr(~nonce_A)
 
     ]
-    --[ Init($A,$B, ~nonce_A) ]->
+    --[ 
+    Init($A,$B, ~nonce_A),
+    SendA($A,$B,~symmetricKey_AB,nonceAAndSignature)
+    ]->
     [ 
         Out(outgoingMessage),
         State_A_first($A,$B,~nonce_A,~symmetricKey_AB)
@@ -85,21 +92,24 @@ rule B_ReceiveAndRespond_ToA:
     ]
     --[ 
         SecretmA(A,$B,nonce_A),
-        ValidSignature(verify(signatureNonceA,nonce_A,publicVerificationKey_A))
+        ValidSignature(verify(signatureNonceA,nonce_A,publicVerificationKey_A)),
+        AuthenticA(A,$B,symmetricKey_AB,nonceAAndSignature),
+        SendB(A,$B,~nonce_B)
     ]->
     [ Out(outgoingMessage) ]
 
 rule A_FinalReceive:
     let
-        incomingMessage = senc(nonce_B,symmetricKey_AB)
+        incomingMessage = senc(~nonce_B,symmetricKey_AB)
     in
     [ 
         State_A_first(A,B,nonce_A,symmetricKey_AB),
         In(incomingMessage)
-     ]
+    ]
     --[ 
-        Finish(A,B,nonce_A,nonce_B,symmetricKey_AB),
-        SecretmB(A,B,nonce_B)
+        Finish(A,B,nonce_A,~nonce_B,symmetricKey_AB),
+        SecretmB(A,B,~nonce_B),
+        AuthenticB(A,B,~nonce_B)
     ]->
     [  ]
 
@@ -117,12 +127,36 @@ exists-trace
 
 lemma secrecy_m_A:
 "
-    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> not Ex #j . K(nonce_A)@j
+    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> 
+        (not Ex #j . K(nonce_A)@j) |
+        (Ex Participant #j . Reveal(Participant)@j)
 "
 
-lemma secrecy_m_B: //does not hold anymore as expected
+lemma secrecy_m_B: 
 "
-    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==> not Ex #j . K(nonce_B)@j
+    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==>
+    (not Ex #j . K(nonce_B)@j) |
+    (Ex Participant #j . Reveal(Participant)@j)
 "
 
-end
+lemma message_authentication_a:
+"
+    All A B symmetricKey_AB nonceAAndSignature #i . 
+        AuthenticA(A,B,symmetricKey_AB,nonceAAndSignature)@i 
+            ==>
+                (Ex #j . SendA(A,B,symmetricKey_AB,nonceAAndSignature)@j) |
+                (Ex #j . Reveal(A)@j) |
+                (Ex #j . Reveal(B)@j) 
+"
+
+lemma message_authentication_b:
+"
+    All A B nonce_B #i .
+        AuthenticB(A,B,nonce_B)@i
+            ==> 
+                (Ex #j . SendB(A,B,nonce_B)@j) |
+                (Ex #j . Reveal(A)@j) |
+                (Ex #j . Reveal(B)@j) 
+"
+
+ end
