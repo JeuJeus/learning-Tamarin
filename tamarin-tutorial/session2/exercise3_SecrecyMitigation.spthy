@@ -122,12 +122,16 @@ exists-trace
 
 lemma secrecy_m_A:
 "
-    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> not Ex #j . K(nonce_A)@j
+    All A B nonce_A #i . SecretmA(A,B,nonce_A)@i ==> 
+        (not Ex #j . K(nonce_A)@j) |
+        (Ex Participant #j . Reveal(Participant)@j)
 "
 
-lemma secrecy_m_B: //does not hold anymore as expected
+lemma secrecy_m_B: 
 "
-    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==> not Ex #j . K(nonce_B)@j
+    All A B nonce_B #i . SecretmB(A,B,nonce_B)@i ==>
+    (not Ex #j . K(nonce_B)@j) |
+    (Ex Participant #j . Reveal(Participant)@j)
 "
 
 end
