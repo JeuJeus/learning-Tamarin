@@ -25,7 +25,8 @@ rule RegisterKeyAtPKI:
     --[  ]->
     [ 
         !Publickey($X, publickey), 
-        !Privatekey($X, ~privatekey)
+        !Privatekey($X, ~privatekey),
+        Out(publickey)
     ]
 
 rule C_InitRunWithNonce:
