@@ -1,0 +1,178 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise2b_PingUpdates.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * C->S : aenc(nonce_C,privatekey_S)
+ * C<-S : aenc(nonce_C,nonce_S,privatekey_C)
+ * C->S : senc(payload, K_CS)
+ *
+ */
+
+theory exercise2b_PingUpdates
+begin
+
+builtins: symmetric-encryption, asymmetric-encryption
+functions: generateSymmetricKey/2
+
+rule RegisterClientKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[ RegisteredClientKeyFor(~privatekey) ]->
+    [ 
+        !ClientKeypair(publickey,~privatekey),
+        !ClientPublicKey(publickey),
+        Out(publickey)
+    ]
+    
+rule RegisterServerKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[ RegisteredServerKeyFor(~privatekey) ]->
+    [ 
+        !ServerKeypair(publickey,~privatekey),
+        !ServerPublickey(publickey),
+        Out(publickey)
+    ]
+
+rule C_InitRunWithNonce:
+    let
+        outgoingMessage = aenc(~nonce_C, publickey_S)
+    in
+    [ 
+        !ServerPublickey(publickey_S),
+        Fr(~nonce_C)
+     ]
+    --[  ]->
+    [ 
+        Out(outgoingMessage),
+        State_C_first(publickey_S,~nonce_C)
+    ]
+
+rule S_ReceiveNonceAndRespond:
+    let
+        publickey_S = pk(privatekey_S)
+
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        incomingMessageEncrypted = aenc(~nonce_C, publickey_S) 
+        outgoingMessage = <~nonce_C,~nonce_S>
+        outgoingMessageEncryped = aenc(outgoingMessage,publickey_C)
+    in
+    [ 
+        In(incomingMessageEncrypted),
+        !ServerKeypair(publickey_S, privatekey_S),
+        !ClientPublicKey(publickey_C),
+        Fr(~nonce_S)
+     ]
+    --[  ]->
+    [ 
+        Out(outgoingMessageEncryped),
+        State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS)
+    ]
+
+rule C_symmetricEncryptedPayload:
+    let
+        publickey_C = pk(privatekey_C)
+    
+        incomingMessage = <~nonce_C,~nonce_S>
+        incomingMessageEncrypted = aenc(incomingMessage, publickey_C)
+        
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        outgoingMessage = senc(~payload,symmetricKey_CS)
+    in
+    [ 
+        State_C_first(publickey_S,~nonce_C),
+        In(incomingMessageEncrypted),
+        !ClientKeypair(publickey_C,privatekey_C),
+        Fr(~payload)
+     ]
+    --[ 
+        ClientSendsMessage(publickey_C)
+     ]->
+    [ 
+        Out(outgoingMessage),
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS)
+    ]
+
+rule S_finalReceiveSymmetricEncryptedPayload:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        incomingMessageEncrypted = senc(~payload,symmetricKey_CS)
+    in
+    [ 
+        State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS),
+        In(incomingMessageEncrypted)
+    ]
+    --[  ]->
+    [  ]
+
+rule C_updatePing:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+        outgoingMessage = senc('KEEP_ALIVE',symmetricKey_CS)
+    in
+    [ 
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+     ]
+    --[  ]->
+    [ 
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+    ]
+
+rule S_ReceivePing:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+        incomingMessageEncrypted = senc('KEEP_ALIVE',symmetricKey_CS)
+    in
+    [ 
+        State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS),
+        In(incomingMessageEncrypted)
+    ]
+    --[  ]->
+    [  ]
+
+rule C_end:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+    in
+    [ 
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+    ]
+    --[ ClientFinish(symmetricKey_CS) ]->
+    [  ]
+
+restriction singleServer:
+"
+    All privatekey_s1 privatekey_s2 #i #j . 
+        RegisteredServerKeyFor(privatekey_s1)@i &
+        RegisteredServerKeyFor(privatekey_s2)@j
+            ==>
+                #i=#j
+"
+
+restriction singleClient:
+"
+    All privatekey_c1 privatekey_c2 #i #j .
+        RegisteredClientKeyFor(privatekey_c1)@i &
+        RegisteredClientKeyFor(privatekey_c2)@j
+            ==>
+                #i=#j
+"
+
+lemma secrecy_of_shared_key: //this is normally provable, tutorial claims problems w/ looping, either modeled better or outdatedx^%
+"
+    All symmetricKey_CS #j . 
+        ClientFinish(symmetricKey_CS)@j 
+            ==> not Ex #i . K(symmetricKey_CS)@i
+"
+
+end

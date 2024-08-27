@@ -1,7 +1,7 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: exercise2_LoopedProtocols.spthy
+ *  Model Name: exercise2a_LoopedProtocols.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
@@ -11,7 +11,7 @@
  *
  */
 
-theory exercise2_LoopedProtocols
+theory exercise2a_LoopedProtocols
 begin
 
 builtins: symmetric-encryption, asymmetric-encryption
@@ -94,9 +94,12 @@ rule C_symmetricEncryptedPayload:
         !ClientKeypair(publickey_C,privatekey_C),
         Fr(~payload)
      ]
-    --[  ]->
+    --[ 
+        ClientSendsMessage(publickey_C)
+     ]->
     [ 
-        Out(outgoingMessage)
+        Out(outgoingMessage),
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS)
     ]
 
 rule S_finalReceiveSymmetricEncryptedPayload:
@@ -112,6 +115,15 @@ rule S_finalReceiveSymmetricEncryptedPayload:
     --[  ]->
     [  ]
 
+rule C_end:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+    in
+    [ 
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+    ]
+    --[ ClientFinish(symmetricKey_CS) ]->
+    [  ]
 
 restriction singleServer:
 "
@@ -131,5 +143,11 @@ restriction singleClient:
                 #i=#j
 "
 
+lemma secrecy_of_shared_key: //this is normally provable, tutorial claims problems w/ looping, either modeled better or outdatedx^%
+"
+    All symmetricKey_CS #j . 
+        ClientFinish(symmetricKey_CS)@j 
+            ==> not Ex #i . K(symmetricKey_CS)@i
+"
 
 end
