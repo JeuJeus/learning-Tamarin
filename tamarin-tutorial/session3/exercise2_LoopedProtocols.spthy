@@ -17,15 +17,27 @@ begin
 builtins: symmetric-encryption, asymmetric-encryption
 functions: generateSymmetricKey/2
 
-rule RegisterKeyAtPKI:
+rule RegisterClientKeyAtPKI:
     let
         publickey = pk(~privatekey)
     in
     [ Fr(~privatekey) ]
-    --[  ]->
+    --[ RegisteredClientKeyFor(~privatekey) ]->
     [ 
-        !Publickey($X, publickey), 
-        !Privatekey($X, ~privatekey),
+        !ClientKeypair(publickey,~privatekey),
+        !ClientPublicKey(publickey),
+        Out(publickey)
+    ]
+    
+rule RegisterServerKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[ RegisteredServerKeyFor(~privatekey) ]->
+    [ 
+        !ServerKeypair(publickey,~privatekey),
+        !ServerPublickey(publickey),
         Out(publickey)
     ]
 
@@ -34,13 +46,13 @@ rule C_InitRunWithNonce:
         outgoingMessage = aenc(~nonce_C, publickey_S)
     in
     [ 
-        !Publickey($S, publickey_S),
+        !ServerPublickey(publickey_S),
         Fr(~nonce_C)
      ]
     --[  ]->
     [ 
         Out(outgoingMessage),
-        State_C_first($S,~nonce_C)
+        State_C_first(publickey_S,~nonce_C)
     ]
 
 rule S_ReceiveNonceAndRespond:
@@ -55,14 +67,14 @@ rule S_ReceiveNonceAndRespond:
     in
     [ 
         In(incomingMessageEncrypted),
-        !Privatekey($S, privatekey_S),
-        !Privatekey($C, publickey_C),
+        !ServerKeypair(publickey_S, privatekey_S),
+        !ClientPublicKey(publickey_C),
         Fr(~nonce_S)
      ]
     --[  ]->
     [ 
         Out(outgoingMessageEncryped),
-        State_S_first($C,$S,~nonce_C,~nonce_S,symmetricKey_CS)
+        State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS)
     ]
 
 rule C_symmetricEncryptedPayload:
@@ -77,9 +89,9 @@ rule C_symmetricEncryptedPayload:
         outgoingMessage = senc(~payload,symmetricKey_CS)
     in
     [ 
-        State_C_first($S,~nonce_C),
+        State_C_first(publickey_S,~nonce_C),
         In(incomingMessageEncrypted),
-        !Privatekey($C,privatekey_C),
+        !ClientKeypair(publickey_C,privatekey_C),
         Fr(~payload)
      ]
     --[  ]->
@@ -94,10 +106,30 @@ rule S_finalReceiveSymmetricEncryptedPayload:
         incomingMessageEncrypted = senc(~payload,symmetricKey_CS)
     in
     [ 
-        State_S_first(C,S,~nonce_C,~nonce_S,symmetricKey_CS),
+        State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS),
         In(incomingMessageEncrypted)
     ]
     --[  ]->
     [  ]
+
+
+restriction singleServer:
+"
+    All privatekey_s1 privatekey_s2 #i #j . 
+        RegisteredServerKeyFor(privatekey_s1)@i &
+        RegisteredServerKeyFor(privatekey_s2)@j
+            ==>
+                #i=#j
+"
+
+restriction singleClient:
+"
+    All privatekey_c1 privatekey_c2 #i #j .
+        RegisteredClientKeyFor(privatekey_c1)@i &
+        RegisteredClientKeyFor(privatekey_c2)@j
+            ==>
+                #i=#j
+"
+
 
 end
