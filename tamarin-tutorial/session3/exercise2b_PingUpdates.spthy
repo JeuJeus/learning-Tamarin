@@ -95,7 +95,8 @@ rule C_symmetricEncryptedPayload:
         Fr(~payload)
      ]
     --[ 
-        ClientSendsMessage(publickey_C)
+        ClientSendsMessage(publickey_C),
+        ClientSymmetricKeyEstablished(publickey_S,publickey_C,symmetricKey_CS)
      ]->
     [ 
         Out(outgoingMessage),
@@ -123,7 +124,9 @@ rule C_updatePing:
     [ 
         State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
      ]
-    --[  ]->
+    --[ 
+        SendUpdatePing(publickey_S,publickey_C,symmetricKey_CS)
+     ]->
     [ 
         State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
     ]
@@ -168,11 +171,21 @@ restriction singleClient:
                 #i=#j
 "
 
-lemma secrecy_of_shared_key: //this is normally provable, tutorial claims problems w/ looping, either modeled better or outdatedx^%
+lemma secrecy_of_shared_key [use_induction]: //this is normally provable, tutorial claims problems w/ looping, either modeled better or outdatedx^%
 "
     All symmetricKey_CS #j . 
         ClientFinish(symmetricKey_CS)@j 
             ==> not Ex #i . K(symmetricKey_CS)@i
+"
+
+lemma ping_send_preceeded_by_session_establishment [reuse,use_induction]:
+"
+    All clientPublicKey serverPublickey symmetricKey_CS #i . 
+        SendUpdatePing(serverPublickey,clientPublicKey,symmetricKey_CS)@i 
+            ==> 
+                Ex #j . 
+                    ClientSymmetricKeyEstablished(serverPublickey,clientPublicKey,symmetricKey_CS)@j &
+                    #j<#i
 "
 
 end
