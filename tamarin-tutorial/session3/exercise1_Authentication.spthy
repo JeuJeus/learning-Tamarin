@@ -1,7 +1,7 @@
 
 /*
  *  Author: Julius Figge
- *  Model Name: exercise1.spthy
+ *  Model Name: exercise1_Authentication.spthy
  *  Status: DEVELOPMENTAL
  *
  *  Comments:
@@ -11,7 +11,7 @@
  * A<-B : senc(m_B,K_AB)
  * 
  */
-theory exercise3
+theory exercise1_Authentication
 begin
  
 builtins: asymmetric-encryption, symmetric-encryption, signing
