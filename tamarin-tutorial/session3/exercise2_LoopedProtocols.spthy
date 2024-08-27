@@ -1,0 +1,102 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise2_LoopedProtocols.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ * C->S : aenc(nonce_C,privatekey_S)
+ * C<-S : aenc(nonce_C,nonce_S,privatekey_C)
+ * C->S : senc(payload, K_CS)
+ *
+ */
+
+theory exercise2_LoopedProtocols
+begin
+
+builtins: symmetric-encryption, asymmetric-encryption
+functions: generateSymmetricKey/2
+
+rule RegisterKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ Fr(~privatekey) ]
+    --[  ]->
+    [ 
+        !Publickey($X, publickey), 
+        !Privatekey($X, ~privatekey)
+    ]
+
+rule C_InitRunWithNonce:
+    let
+        outgoingMessage = aenc(~nonce_C, publickey_S)
+    in
+    [ 
+        !Publickey($S, publickey_S),
+        Fr(~nonce_C)
+     ]
+    --[  ]->
+    [ 
+        Out(outgoingMessage),
+        State_C_first($S,~nonce_C)
+    ]
+
+rule S_ReceiveNonceAndRespond:
+    let
+        publickey_S = pk(privatekey_S)
+
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        incomingMessageEncrypted = aenc(~nonce_C, publickey_S) 
+        outgoingMessage = <~nonce_C,~nonce_S>
+        outgoingMessageEncryped = aenc(outgoingMessage,publickey_C)
+    in
+    [ 
+        In(incomingMessageEncrypted),
+        !Privatekey($S, privatekey_S),
+        !Privatekey($C, publickey_C),
+        Fr(~nonce_S)
+     ]
+    --[  ]->
+    [ 
+        Out(outgoingMessageEncryped),
+        State_S_first($C,$S,~nonce_C,~nonce_S,symmetricKey_CS)
+    ]
+
+rule C_symmetricEncryptedPayload:
+    let
+        publickey_C = pk(privatekey_C)
+    
+        incomingMessage = <~nonce_C,~nonce_S>
+        incomingMessageEncrypted = aenc(incomingMessage, publickey_C)
+        
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        outgoingMessage = senc(~payload,symmetricKey_CS)
+    in
+    [ 
+        State_C_first($S,~nonce_C),
+        In(incomingMessageEncrypted),
+        !Privatekey($C,privatekey_C),
+        Fr(~payload)
+     ]
+    --[  ]->
+    [ 
+        Out(outgoingMessage)
+    ]
+
+rule S_finalReceiveSymmetricEncryptedPayload:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        incomingMessageEncrypted = senc(~payload,symmetricKey_CS)
+    in
+    [ 
+        State_S_first(C,S,~nonce_C,~nonce_S,symmetricKey_CS),
+        In(incomingMessageEncrypted)
+    ]
+    --[  ]->
+    [  ]
+
+end
