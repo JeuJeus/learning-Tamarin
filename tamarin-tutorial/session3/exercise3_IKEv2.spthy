@@ -10,9 +10,9 @@
  *  - PartyA : sk_A,pk_B
  *  - PartyB : sk_B,pk_A
  *  
- *  A->B : <INIT, SA_A, g^x_A, n_A, info_A>
+ *  A->B : <INIT, sA_A, g^x_A, n_A, info_A>
  *  A<-B : <INIT, cookie>
- *  A->B : <INIT, cookie, SA_A, g^x_A, n_A, info_A>
+ *  A->B : <INIT, cookie, sA_A, g^x_A, n_A, info_A>
  *  A<-B : <INIT, SA_B, g^x_B, n_B, info_B>
  *  A->B : <{AUTH, pk_A, sign(transcript_A,sk_A)}_k1 >
  *  A<-B : <{AUTH, pk_B, sign(transcript_B, sk_B)}_k2 >
@@ -36,5 +36,152 @@ theory exercise3_IKEv2
 begin
 
 builtins: asymmetric-encryption, diffie-hellman
+
+rule RegisterKeyAtPKI:
+    let
+        publickey = pk(~privatekey)
+    in
+    [ 
+        Fr(~privatekey)
+     ]
+    --[ GeneratedKeyFor($X) ]->
+    [ 
+        !Publickey($X,publickey),
+        !Privatekey($X,~privatekey)
+    ]
+
+rule AB_defineG:
+    [
+        Fr(~g)
+    ]
+    --[ DifferentPartners($A,$B)]->
+    [
+        State_A_pre($A,$B,~g),
+        State_B_pre($A,$B,~g)
+    ]
+
+rule A_generateInitialState:
+    [ 
+        State_A_pre(A,B,~g),
+        !Publickey(B,publickey_B),
+        !Privatekey(A,privatekey_A)
+    ]
+    --[]->
+    [ State_A_initial(A,B,privatekey_A,publickey_B,~g) ]
+
+rule B_generateInitialState:
+    [ 
+        State_B_pre(A,B,~g),
+        !Publickey(A,publickey_A),
+        !Privatekey(B,privatekey_B)
+    ]
+    --[]->
+    [ State_B_initial(A,B,publickey_A,privatekey_B,~g) ]
+
+rule A_InitiateProtocol:
+    let
+        gRaisedToPowerOfx_A = ~g^~x_A
+        outgoingMessage = <'INIT',$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A>
+    in
+    [ 
+        State_A_initial(A,B,privatekey_A,publickey_B,~g),
+        Fr(~x_A),
+        Fr(~nonce_A)
+
+    ]
+    --[ StartSession(A,B) ]->
+    [ 
+        Out(outgoingMessage),
+        State_A_first(A,B,privatekey_A,publickey_B,~g,~x_A,~nonce_A,$sA_A,$info_A)
+    ]
+
+rule B_ReceiveInitAndRespond_ToA:
+    let
+        incomingMessage = <'INIT',$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A>
+
+        outgoingMessage = <'INIT',~cookie>
+    in
+    [ 
+        State_B_initial(A,B,publickey_A,privatekey_B,~g),
+        In(incomingMessage),
+        Fr(~cookie)
+    ]
+    --[  ]->
+    [ 
+        Out(outgoingMessage),
+        State_B_first(A,B,publickey_A,privatekey_B,~g,<$sA_A,$info_A,gRaisedToPowerOfx_A,~nonce_A>,~cookie)
+    ]
+
+rule A_ReceiveCookieFromBAndRespond_ToB:
+    let
+        incomingMessage = <'INIT',~cookie>
+
+        gRaisedToPowerOfx_A = ~g^~x_A
+        outgoingMessage = <'INIT', ~cookie, $sA_A, gRaisedToPowerOfx_A, ~nonce_A, $info_A>
+    in
+    [ 
+        State_A_first(A,B,privatekey_A,publickey_B,~g,~x_A,~nonce_A,$sA_A,$info_A),
+        In(incomingMessage)
+    ]
+    --[  ]->
+    [ 
+        Out(outgoingMessage),
+        State_A_second(A,B,privatekey_A,publickey_B,~g,~nonce_A,$sA_A,$info_A,~cookie)
+    ]
+
+rule B_ReceiveResponseWithCookie_RespondWithContentForSharedKey: //TODO rename these
+    let
+        incomingMessage = <'INIT', ~cookie, $sA_A, gRaisedToPowerOfx_A, ~nonce_A, $info_A> 
+
+        gRaisedToPowerOfx_B = ~g^~x_B
+        outgoingMessage = <'INIT', $sA_B, gRaisedToPowerOfx_B, ~nonce_B, $info_B>
+    in
+    [ 
+        State_B_first(A,B,publickey_A,privatekey_B,~g,<$sA_A,$info_A,gRaisedToPowerOfx_A,~nonce_A>,~cookie),
+        In(incomingMessage),
+        Fr(~x_B),
+        Fr(~nonce_B)
+     ]
+    --[  ]->
+    [ 
+        State_B_second(A,B,publickey_A,privatekey_B,~g,<$sA_A,$info_A,gRaisedToPowerOfx_A,~nonce_A>,~cookie, ~x_B, ~nonce_B, $sA_B, $info_B)//TODO clean up this
+    ]
+
+rule A_SwitchOverToAUTH:
+    let
+        
+    in
+    [  ]
+    --[  ]->
+    [  ]
+
+rule B_SwichOverToAUTH:
+    let
+        
+    in
+    [  ]
+    --[  ]->
+    [  ]
+
+rule A_FinalReceive:
+    let
+        
+    in
+    [  ]
+    --[  ]->
+    [  ]
+
+restriction partners_need_to_be_different:
+    "All x #i. DifferentPartners(x,x) @ #i ==> F"
+
+restriction sessions_are_unique_by_partners:
+"
+    All A B #i #j . 
+        StartSession(A,B)@i &
+        StartSession(A,B)@j 
+            ==> #i=#j
+"
+
+//TODO introduce security properties
 
 end
