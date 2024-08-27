@@ -1,0 +1,40 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: exercise3_IKEv2.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: IKEv2 is a widespread Internet standard used by IPsec to secure traffic on IP level. It is used for example in the more commonly known VPN.
+ *  
+ *  Pre-established Knowledge:
+ *  - PartyA : sk_A,pk_B
+ *  - PartyB : sk_B,pk_A
+ *  
+ *  A->B : <INIT, SA_A, g^x_A, n_A, info_A>
+ *  A<-B : <INIT, cookie>
+ *  A->B : <INIT, cookie, SA_A, g^x_A, n_A, info_A>
+ *  A<-B : <INIT, SA_B, g^x_B, n_B, info_B>
+ *  A->B : <{AUTH, pk_A, sign(transcript_A,sk_A)}_k1 >
+ *  A<-B : <{AUTH, pk_B, sign(transcript_B, sk_B)}_k2 >
+ *  
+ *  i : A v B
+ *  INIT / AUTH : used to identify role of \forall party
+ *  SA_i, info_i : describe set of algorithms + meta information respectively
+ *  cookie : random value : identify session later on
+ *  g : DH generator
+ *  x_A,x_B : DH-shares of the two parties
+ *  n_A,n_B : random nonces
+ *  for integer j : corresponding key k_j : computed as follows : kdf(k,n_A,n_B,i)
+ *  transcript : hashing SA_i,g_i^x,n_i,info_i,MAC_i
+ *  transcript_A : cookie hashed also in front of other values
+ *  MAC_i : computed by mac(pk_i,k_j)
+ *      initiator mac j=3
+ *      responder mac j=4
+ */
+
+theory exercise3_IKEv2
+begin
+
+builtins: asymmetric-encryption, diffie-hellman
+
+end
