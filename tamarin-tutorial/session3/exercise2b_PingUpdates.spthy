@@ -47,12 +47,13 @@ rule C_InitRunWithNonce:
     in
     [ 
         !ServerPublickey(publickey_S),
+        !ClientKeypair(publickey_C,privatekey_C),
         Fr(~nonce_C)
      ]
     --[  ]->
     [ 
         Out(outgoingMessage),
-        State_C_first(publickey_S,~nonce_C)
+        State_C_first(publickey_S,publickey_C,~nonce_C)
     ]
 
 rule S_ReceiveNonceAndRespond:
@@ -77,7 +78,7 @@ rule S_ReceiveNonceAndRespond:
         State_S_first(publickey_C,publickey_S,~nonce_C,~nonce_S,symmetricKey_CS)
     ]
 
-rule C_symmetricEncryptedPayload:
+rule C_establishSymmetricKey:
     let
         publickey_C = pk(privatekey_C)
     
@@ -89,18 +90,33 @@ rule C_symmetricEncryptedPayload:
         outgoingMessage = senc(~payload,symmetricKey_CS)
     in
     [ 
-        State_C_first(publickey_S,~nonce_C),
+        State_C_first(publickey_S,publickey_C,~nonce_C),
         In(incomingMessageEncrypted),
-        !ClientKeypair(publickey_C,privatekey_C),
-        Fr(~payload)
+        !ClientKeypair(publickey_C,privatekey_C)
      ]
     --[ 
-        ClientSendsMessage(publickey_C),
         ClientSymmetricKeyEstablished(publickey_S,publickey_C,symmetricKey_CS)
      ]->
     [ 
-        Out(outgoingMessage),
         State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS)
+    ]
+
+rule C_sendSymmetricEncryptedPayload:
+    let
+        symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
+
+        outgoingMessage = senc(~payload,symmetricKey_CS)
+    in
+    [ 
+        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS),
+        Fr(~payload)
+     ]
+    --[ 
+        ClientSendsMessage(publickey_S,publickey_C,symmetricKey_CS)
+     ]->
+    [ 
+        Out(outgoingMessage),
+        State_C_third(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS)
     ]
 
 rule S_finalReceiveSymmetricEncryptedPayload:
@@ -122,13 +138,13 @@ rule C_updatePing:
         outgoingMessage = senc('KEEP_ALIVE',symmetricKey_CS)
     in
     [ 
-        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+        State_C_third(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
      ]
     --[ 
         SendUpdatePing(publickey_S,publickey_C,symmetricKey_CS)
      ]->
     [ 
-        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+        State_C_third(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
     ]
 
 rule S_ReceivePing:
@@ -148,7 +164,7 @@ rule C_end:
         symmetricKey_CS = generateSymmetricKey(~nonce_C,~nonce_S)
     in
     [ 
-        State_C_second(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
+        State_C_third(publickey_S,publickey_C,~nonce_S,~nonce_C,symmetricKey_CS) 
     ]
     --[ ClientFinish(symmetricKey_CS) ]->
     [  ]
@@ -171,21 +187,31 @@ restriction singleClient:
                 #i=#j
 "
 
-lemma secrecy_of_shared_key [use_induction]: //this is normally provable, tutorial claims problems w/ looping, either modeled better or outdatedx^%
+lemma session_established_symmetric_key [reuse,use_induction]:
 "
-    All symmetricKey_CS #j . 
-        ClientFinish(symmetricKey_CS)@j 
-            ==> not Ex #i . K(symmetricKey_CS)@i
+    All serverPublickey clientPublicKey symmetricKey_CS #i . 
+    ClientSendsMessage(serverPublickey,clientPublicKey,symmetricKey_CS)@i 
+        ==> 
+            Ex #j . 
+                ClientSymmetricKeyEstablished(serverPublickey,clientPublicKey,symmetricKey_CS)@j &
+                #j<#i
 "
 
 lemma ping_send_preceeded_by_session_establishment [reuse,use_induction]:
 "
-    All clientPublicKey serverPublickey symmetricKey_CS #i . 
+    All serverPublickey clientPublicKey symmetricKey_CS #i . 
         SendUpdatePing(serverPublickey,clientPublicKey,symmetricKey_CS)@i 
             ==> 
                 Ex #j . 
                     ClientSymmetricKeyEstablished(serverPublickey,clientPublicKey,symmetricKey_CS)@j &
                     #j<#i
+"
+
+lemma secrecy_of_shared_key [use_induction]:
+"
+    All symmetricKey_CS #j . 
+        ClientFinish(symmetricKey_CS)@j 
+            ==> not Ex #i . K(symmetricKey_CS)@i
 "
 
 end
