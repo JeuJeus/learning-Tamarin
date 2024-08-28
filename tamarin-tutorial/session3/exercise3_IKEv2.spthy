@@ -36,8 +36,7 @@ theory exercise3_IKEv2
 begin
 
 builtins: asymmetric-encryption, diffie-hellman, signing, symmetric-encryption, hashing
-functions: kdf/1
-functions: mac/2
+functions: kdf/1,mac/2
 macros: k() = 'k' //this is probably wrong, but manual does not further specify, spec is not easily resolved, will look into this later?
 
 rule RegisterKeyAtPKI:
@@ -57,7 +56,10 @@ rule AB_defineG:
     [
         Fr(~g)
     ]
-    --[ DifferentPartners($A,$B)]->
+    --[ 
+        DifferentPartners($A,$B),
+        DefineG($A,$B)
+    ]->
     [
         State_A_pre($A,$B,~g),
         State_B_pre($A,$B,~g)
@@ -90,7 +92,6 @@ rule A_InitiateProtocol:
         State_A_initial(A,B,privatekey_A,publickey_B,~g),
         Fr(~x_A),
         Fr(~nonce_A)
-
     ]
     --[ StartSession(A,B) ]->
     [ 
@@ -129,7 +130,7 @@ rule A_ReceiveCookieFromBAndRespond_ToB:
     --[  ]->
     [ 
         Out(outgoingMessage),
-        State_A_second(A,B,privatekey_A,publickey_B,~g,~nonce_A,$sA_A,$info_A,~cookie)
+        State_A_second(A,B,privatekey_A,publickey_B,~g,~x_A,~nonce_A,$sA_A,$info_A,~cookie)
     ]
 
 rule B_ReceiveResponseWithCookie_RespondWithContentForSharedKey: //TODO rename these
@@ -156,17 +157,17 @@ rule A_SwitchOverToAUTH:
 
         incomingMessage = <'INIT', $sA_B, ~gRaisedToPowerOfx_B, ~nonce_B, $info_B>
 
-        k_3 = kdf(<k(), ~nonce_A, ~nonce_B, '3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
-        mAC_A = mac(publickey_A,k_3)
+        //k3 = kdf(<k(), ~nonce_A, ~nonce_B, '3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        mAC_A = mac(publickey_A,kdf(<k(), ~nonce_A, ~nonce_B, '3'>))
         transcript_A = h(<~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
-        k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>)
-        encryptedOutgoingMessage = senc(outgoingMessage,k_1)
+        //k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>) //it is not possible right here to chain custom functions ? kdf
+        encryptedOutgoingMessage = senc(outgoingMessage,kdf(<k(),~nonce_A,~nonce_B,'1'>))
     in
     [  
-        State_A_second(A,B,privatekey_A,publickey_B,~g,~nonce_A,$sA_A,$info_A,~cookie),
+        State_A_second(A,B,privatekey_A,publickey_B,~g,~x_A,~nonce_A,$sA_A,$info_A,~cookie),
         In(incomingMessage),
         !Publickey(A,publickey_A)
     ]
@@ -180,20 +181,20 @@ rule B_SwichOverToAUTH:
     let
         gRaisedToPowerOfx_B = ~g^~x_B
 
-        k_3 = kdf(<k(),~nonce_A,~nonce_B,'3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
-        mAC_A = mac(publickey_A,k_3)
+        //k_3 = kdf(<k(),~nonce_A,~nonce_B,'3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        mAC_A = mac(publickey_A,kdf(<k(),~nonce_A,~nonce_B,'3'>))
         transcript_A = h(<~cookie,$sA_A,~gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         incomingMessage = <'AUTH',publickey_A,~transcriptSignature_A>
-        k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>)
-        incomingMessageEncrypted = senc(incomingMessage,k_1)
+        //k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>)
+        incomingMessageEncrypted = senc(incomingMessage,kdf(<k(),~nonce_A,~nonce_B,'1'>))
 
-        k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
-        mAC_B = mac(publickey_B,k_4)
+        //k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
+        mAC_B = mac(publickey_B,kdf(<k(),~nonce_A,~nonce_B,'4'>))
         transcript_B = h(<$sA_B,gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B>)
         signedTranscript_B = <transcript_B,privatekey_B>
         outgoingMessage = <'AUTH',publickey_B,signedTranscript_B>
-        k_2 = kdf(<k(),~nonce_A,~nonce_B,'2'>)
-        outgoingMessageEncryped = senc(outgoingMessage,k_2)
+        //k_2 = kdf(<k(),~nonce_A,~nonce_B,'2'>)
+        outgoingMessageEncryped = senc(outgoingMessage,kdf(<k(),~nonce_A,~nonce_B,'2'>))
     in
     [  
         State_B_second(A,B,publickey_A,privatekey_B,~g,<$sA_A,$info_A,~gRaisedToPowerOfx_A,~nonce_A>,~cookie, ~x_B, ~nonce_B, $sA_B, $info_B),//TODO clean up this
@@ -208,19 +209,20 @@ rule B_SwichOverToAUTH:
 
 rule A_FinalReceive:
     let
-        k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
-        mAC_B = mac(publickey_B,k_4)
+        //k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
+        mAC_B = mac(publickey_B,kdf(<k(),~nonce_A,~nonce_B,'4'>))
         transcript_B = h($sA_B,~gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B)
-        outgoingMessage = <'AUTH',publickey_B,~transcriptSignature_B>
+        incomingMessage = <'AUTH',publickey_B,~transcriptSignature_B>
         k_2 = kdf(<k(),~nonce_A,~nonce_B,'2'>)
-        outgoingMessageEncryped = senc(outgoingMessage,k_2)
+        incomingMessageEncrypted = senc(incomingMessage,kdf(<k(),~nonce_A,~nonce_B,'2'>))
     in
     [  
         State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B),
         In(incomingMessageEncrypted)
     ]
     --[  
-        Eq(verify(~transcriptSignature_B,transcript_B,publickey_B),true) 
+        Eq(verify(~transcriptSignature_B,transcript_B,publickey_B),true),
+        FinishedExchange(A,B) 
     ]->
     [  ]
 
@@ -236,5 +238,16 @@ restriction sessions_are_unique_by_partners:
 "
 
 //TODO introduce security properties
+lemma executable:
+exists-trace
+"
+    All A B #i .
+        StartSession(A,B)@i 
+            ==> 
+                Ex #j . 
+                    FinishedExchange(A,B)@j & 
+                    #i<#j
+"
+
 
 end
