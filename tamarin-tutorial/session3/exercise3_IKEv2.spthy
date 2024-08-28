@@ -157,7 +157,7 @@ rule A_SwitchOverToAUTH:
 
         k_3 = kdf(k(),~nonce_A,~nonce_B,'3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
         mAC_A = mac(publickey_A,k_3)
-        transcript_A = h(~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A)
+        transcript_A = h(<~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
@@ -181,14 +181,14 @@ rule B_SwichOverToAUTH:
 
         k_3 = kdf(k(),~nonce_A,~nonce_B,'3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
         mAC_A = mac(publickey_A,k_3)
-        transcript_A = h(~cookie,$sA_A,~gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A)
+        transcript_A = h(<~cookie,$sA_A,~gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         incomingMessage = <'AUTH',publickey_A,~transcriptSignature_A>
         k_1 = kdf(k(),~nonce_A,~nonce_B,'1')
         incomingMessageEncrypted = senc(incomingMessage,k_1)
 
         k_4 = kdf(k(),~nonce_A,~nonce_B,'4')
         mAC_B = mac(publickey_B,k_4)
-        transcript_B = h($sA_B,gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B)
+        transcript_B = h(<$sA_B,gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B>)
         signedTranscript_B = <transcript_B,privatekey_B>
         outgoingMessage = <'AUTH',publickey_B,signedTranscript_B>
         k_2 = kdf(k(),~nonce_A,~nonce_B,'2')
