@@ -156,13 +156,13 @@ rule A_SwitchOverToAUTH:
         incomingMessage = <'INIT', $sA_B, ~gRaisedToPowerOfx_B, ~nonce_B, $info_B>
 
         k_3 = kdf(k(),~nonce_A,~nonce_B,'3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
-        mAC_A = mac(publickey_A,k_3)
+        mAC_A = mac(publickey_A,'k_3')
         transcript_A = h(<~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
         k_1 = kdf(k(),~nonce_A,~nonce_B,'1')
-        encryptedOutgoingMessage = senc(outgoingMessage,k_1)
+        encryptedOutgoingMessage = senc(outgoingMessage,'k_1')//usage of k_1 and K_3 fails -> whats the way to fix?
     in
     [  
         State_A_second(A,B,privatekey_A,publickey_B,~g,~nonce_A,$sA_A,$info_A,~cookie),
