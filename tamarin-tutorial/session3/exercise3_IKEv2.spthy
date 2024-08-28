@@ -171,7 +171,10 @@ rule A_SwitchOverToAUTH:
         In(incomingMessage),
         !Publickey(A,publickey_A)
     ]
-    --[  ]->
+    --[ 
+        SecretTranscriptA(transcript_A),
+        SecretK1(A,B,(kdf(<k(),~nonce_A,~nonce_B,'1'>)))
+     ]->
     [  
         Out(encryptedOutgoingMessage),
         State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B)
@@ -201,7 +204,7 @@ rule B_SwichOverToAUTH:
         In(incomingMessageEncrypted)
     ]
     --[ 
-        Eq(verify(~transcriptSignature_A,transcript_A,publickey_A),true) 
+        Eq(verify(~transcriptSignature_A,transcript_A,publickey_A),true)
     ]->
     [  
 
@@ -247,6 +250,22 @@ exists-trace
                 Ex #j . 
                     FinishedExchange(A,B)@j & 
                     #i<#j
+"
+
+lemma secrecy_of_K_1:
+"
+    All A B k_1 #i . 
+        SecretK1(A,B,k_1)@i 
+            ==> not Ex #j .
+                K(k_1)@j 
+"
+
+lemma secrecy_of_transcript_A:
+"
+    All transcript_A #i .
+        SecretTranscriptA(transcript_A)@i 
+            ==> not Ex #j . 
+                K(transcript_A)@j
 "
 
 
