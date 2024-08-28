@@ -36,7 +36,8 @@ theory exercise3_IKEv2
 begin
 
 builtins: asymmetric-encryption, diffie-hellman, signing, symmetric-encryption, hashing
-functions: kdf/4, mac/2
+functions: kdf/1
+functions: mac/2
 macros: k() = 'k' //this is probably wrong, but manual does not further specify, spec is not easily resolved, will look into this later?
 
 rule RegisterKeyAtPKI:
@@ -155,14 +156,14 @@ rule A_SwitchOverToAUTH:
 
         incomingMessage = <'INIT', $sA_B, ~gRaisedToPowerOfx_B, ~nonce_B, $info_B>
 
-        k_3 = kdf(k(),~nonce_A,~nonce_B,'3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
-        mAC_A = mac(publickey_A,'k_3')
+        k_3 = kdf(<k(), ~nonce_A, ~nonce_B, '3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        mAC_A = mac(publickey_A,k_3)
         transcript_A = h(<~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
-        k_1 = kdf(k(),~nonce_A,~nonce_B,'1')
-        encryptedOutgoingMessage = senc(outgoingMessage,'k_1')//usage of k_1 and K_3 fails -> whats the way to fix?
+        k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>)
+        encryptedOutgoingMessage = senc(outgoingMessage,k_1)
     in
     [  
         State_A_second(A,B,privatekey_A,publickey_B,~g,~nonce_A,$sA_A,$info_A,~cookie),
@@ -179,19 +180,19 @@ rule B_SwichOverToAUTH:
     let
         gRaisedToPowerOfx_B = ~g^~x_B
 
-        k_3 = kdf(k(),~nonce_A,~nonce_B,'3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        k_3 = kdf(<k(),~nonce_A,~nonce_B,'3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
         mAC_A = mac(publickey_A,k_3)
         transcript_A = h(<~cookie,$sA_A,~gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         incomingMessage = <'AUTH',publickey_A,~transcriptSignature_A>
-        k_1 = kdf(k(),~nonce_A,~nonce_B,'1')
+        k_1 = kdf(<k(),~nonce_A,~nonce_B,'1'>)
         incomingMessageEncrypted = senc(incomingMessage,k_1)
 
-        k_4 = kdf(k(),~nonce_A,~nonce_B,'4')
+        k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
         mAC_B = mac(publickey_B,k_4)
         transcript_B = h(<$sA_B,gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B>)
         signedTranscript_B = <transcript_B,privatekey_B>
         outgoingMessage = <'AUTH',publickey_B,signedTranscript_B>
-        k_2 = kdf(k(),~nonce_A,~nonce_B,'2')
+        k_2 = kdf(<k(),~nonce_A,~nonce_B,'2'>)
         outgoingMessageEncryped = senc(outgoingMessage,k_2)
     in
     [  
@@ -207,11 +208,11 @@ rule B_SwichOverToAUTH:
 
 rule A_FinalReceive:
     let
-        k_4 = kdf(k(),~nonce_A,~nonce_B,'4')
+        k_4 = kdf(<k(),~nonce_A,~nonce_B,'4'>)
         mAC_B = mac(publickey_B,k_4)
         transcript_B = h($sA_B,~gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B)
         outgoingMessage = <'AUTH',publickey_B,~transcriptSignature_B>
-        k_2 = kdf(k(),~nonce_A,~nonce_B,'2')
+        k_2 = kdf(<k(),~nonce_A,~nonce_B,'2'>)
         outgoingMessageEncryped = senc(outgoingMessage,k_2)
     in
     [  
