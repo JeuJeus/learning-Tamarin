@@ -58,7 +58,8 @@ rule AB_defineG:
     ]
     --[ 
         DifferentPartners($A,$B),
-        DefineG($A,$B)
+        DefineG($A,$B),
+        UniquePartnerPairRun()
     ]->
     [
         State_A_pre($A,$B,~g),
@@ -154,6 +155,7 @@ rule B_ReceiveResponseWithCookie_RespondWithContentForSharedKey: //TODO rename t
 rule A_SwitchOverToAUTH:
     let
         gRaisedToPowerOfx_A = ~g^(~x_A)
+        publickey_A = pk(privatekey_A)
 
         incomingMessage = <'INIT', $sA_B, ~gRaisedToPowerOfx_B, ~nonce_B, $info_B>
 
@@ -163,13 +165,12 @@ rule A_SwitchOverToAUTH:
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
-        k_1 = kdf(<kConstant(),~nonce_A,~nonce_B,'1'>) //it is not possible right here to chain custom functions ? kdf
+        k_1 = kdf(<kConstant(),~nonce_A,~nonce_B,'1'>) 
         encryptedOutgoingMessage = senc(outgoingMessage,k_1)
     in
     [  
         State_A_second(A,B,privatekey_A,publickey_B,~g,~x_A,~nonce_A,$sA_A,$info_A,~cookie),
-        In(incomingMessage),
-        !Publickey(A,publickey_A)
+        In(incomingMessage)
     ]
     --[ 
         SecretTranscriptA(transcript_A),
@@ -212,12 +213,12 @@ rule B_SwichOverToAUTH:
 
 rule A_FinalReceive:
     let
-        //k_4 = kdf(<kConstant(),~nonce_A,~nonce_B,'4'>)
-        mAC_B = mac(publickey_B,kdf(<kConstant(),~nonce_A,~nonce_B,'4'>))
+        k_4 = kdf(<kConstant(),~nonce_A,~nonce_B,'4'>)
+        mAC_B = mac(publickey_B,k_4)
         transcript_B = h($sA_B,~gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B)
         incomingMessage = <'AUTH',publickey_B,~transcriptSignature_B>
         k_2 = kdf(<kConstant(),~nonce_A,~nonce_B,'2'>)
-        incomingMessageEncrypted = senc(incomingMessage,kdf(<kConstant(),~nonce_A,~nonce_B,'2'>))
+        incomingMessageEncrypted = senc(incomingMessage,k_2)
     in
     [  
         State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B),
@@ -232,11 +233,11 @@ rule A_FinalReceive:
 restriction partners_need_to_be_different:
     "All x #i. DifferentPartners(x,x) @ #i ==> F"
 
-restriction sessions_are_unique_by_partners:
+restriction only_executed_with_one_unique_partner_pair:
 "
-    All A B #i #j . 
-        StartSession(A,B)@i &
-        StartSession(A,B)@j 
+    All #i #j . 
+        UniquePartnerPairRun()@i &
+        UniquePartnerPairRun()@j 
             ==> #i=#j
 "
 
