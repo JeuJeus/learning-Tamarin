@@ -164,7 +164,7 @@ rule Card_ReadRecord:
   [  
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<amount,~unpredictableNumber>,ATC,~nonceCard)
   ]
-  --[ AuthenticateToTerminal(cardId,outgoingMessage)]->
+  --[ AuthenticateToTerminal(cardId,PAN,SDAD,~nonceCard)]->
   [  
     Out(outgoingMessage)
   ]  
@@ -191,7 +191,7 @@ rule Terminal_offline_SdadVerification:
   --[ 
       Eq(verify(SDAD,transactionDataSm,publickeyCard),true),
       Accept(<'OFFLINE',CID>,cardId),
-      AcceptedOffline(cardId,incomingMessage)
+      AcceptedOffline(cardId,PAN,SDAD,~nonceCard)
     ]->
   [ 
     Out('ACCEPT')
@@ -306,13 +306,15 @@ exists-trace
 lemma authentication_offline_by_terminal:
 //All transactions accepted offline by the terminal are authenticated to it by the card.
 "
-    All cardId message #i . 
-      AcceptedOffline(cardId,message)@i 
+    All cardId PAN SDAD nonceCard #i . 
+      AcceptedOffline(cardId,PAN,SDAD,nonceCard)@i 
         ==>
           (Ex #j . 
-          AuthenticateToTerminal(cardId,message)@j & 
-          #j<#i 
-          ) |
-          (Ex #k . RevealCardPrivateKey(cardId)@k)
+            AuthenticateToTerminal(cardId,PAN,SDAD,nonceCard)@j & 
+            #j<#i 
+          ) | 
+          (Ex #j .
+            RevealCardPrivateKey(cardId)@j
+          ) 
 "
 end
