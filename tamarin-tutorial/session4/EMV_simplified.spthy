@@ -50,7 +50,7 @@ begin
 
 builtins: asymmetric-encryption,signing
 functions: kdf/2, MAC/2, MAC_Apostrophe/2
-macros: AIP()='fDDA'
+macros: AIP()='fDDA', CID()='ARQC'
 
 rule SecureChannelSend:
   [ OutSecure($From, $To, message) ]
@@ -113,7 +113,7 @@ rule Card_MacOverPdolATC:
 
     AC = MAC(secretKey,<PDOL,ATC>)
 
-    outgoingMessage = <AIP(),cardId,ATC,AC>
+    outgoingMessage = <AIP(),CID(),ATC,AC>
   in
   [
     State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,ATC,~nonceCard),
@@ -128,7 +128,7 @@ rule Card_MacOverPdolATC:
 rule Terminal_SendReadRecord:
   let
     PDOL = <amount,~unpredictableNumber>
-    incomingMessage = <AIP(),cardId,ATC,AC>
+    incomingMessage = <AIP(),CID(),ATC,AC>
   in
   [  
     State_Terminal_Initial(PDOL,~unpredictableNumber),
@@ -137,7 +137,7 @@ rule Terminal_SendReadRecord:
   --[  ]->
   [ 
     Out('READ_RECORD'),
-    State_Terminal_Second(PDOL,AIP(),cardId,ATC,AC) 
+    State_Terminal_Second(PDOL,AIP(),CID(),ATC,AC) 
   ]
 
 rule Card_ReadRecord:
@@ -168,7 +168,7 @@ rule Terminal_SdadVerification:
     outgoingMessage = <PAN,PDOL,ATC,AC>
   in
   [  
-    State_Terminal_Second(PDOL,AIP(),cardId,ATC,AC),
+    State_Terminal_Second(PDOL,AIP(),CID(),ATC,AC),
     In(incomingMessage),
     !Publickey(cardId,publickeyCard)
   ]
