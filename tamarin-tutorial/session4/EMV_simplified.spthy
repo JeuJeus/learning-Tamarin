@@ -50,7 +50,8 @@ begin
 
 builtins: asymmetric-encryption,signing
 functions: kdf/2, MAC/2, MAC_Apostrophe/2
-macros: AIP()='fDDA', CID()='ARQC'
+macros: AIP()='fDDA', CID()='ARQC' //for now only allow online authentication
+//TODO implement offline authentication later
 
 rule SecureChannelSend:
   [ OutSecure($From, $To, message) ]
@@ -91,7 +92,7 @@ rule Card_GenerateInitialState:
     Fr(~nonceCard)
   ]
   --[ Initiate($cardId,$Issuer) ]->
-  [ State_Card_Initial($cardId,$Issuer,privatekeyCard,secretKey,$ATC,~nonceCard) ]
+  [ State_Card_Initial($cardId,$Issuer,privatekeyCard,secretKey,$ATC,~nonceCard) ] //TODO implement a concept for better clarity and comprehensibility
 
 rule Terminal_GetProcessingOptions:
   let
