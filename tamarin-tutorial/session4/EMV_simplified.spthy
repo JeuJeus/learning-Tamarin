@@ -1,0 +1,233 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: EMV_simplified.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments:
+ *  Simplified version of VISA 'Request Online Authorization for Payment' Protocol
+ *  
+ *  ### NOTATION: ###
+ *  - mk : master key (only known to the card+issuer)
+ *  - f : key derivation function
+ *  - (privC,pubC) : keypair of the card, pubC known
+ *  - sign_priv_(m) : digital signature on 'm' with the private key 'priv' (signature does not reveal message 'm')
+ *  - verify(sig,m,pub) : true iff sig=sign_priv_(m) and (priv,pub) : valid keypair
+ *  - MAC_k_(m) MAC'_k_(m) : MAC on 'm' with key 'k'
+ *  
+ *  ### PREVIOUSLY ESTABLISHED KNOWLEDGE: ###
+ *  - cardId : mk, privC
+ *  - Terminal : pubC
+ *  - Issuer : mk
+ *  
+ *  ### ASSUMPTIONS: ###
+ *  - AIP='fDDA'
+ *  
+ *  ### EXCHANGE: ###
+ *  cardId : secretKey=f(mk,ATC); fresh nonceCard
+ *  Terminal : fresh unpredictableNumber, PDOL=<amount,unpredictableNumber>
+ *  T->C : 'GET_PROCESSING_OPTIONS',PDOL
+ *  
+ *  cardId : AC=MAC_sk(PDOL,ATC)
+ *  C->T : AIP,CID,ATC,AC
+ *  T->C  : 'READ_RECORD'
+ *  
+ *  cardId : sm=<unpredictableNumber,amount,nonceCard,ATC,AIP>; SDAD=sign_privC(sm)
+ *  C->T : PAN,SDAD,nonceCard
+ *  
+ *  Terminal: if(SDAD verification fails) decline; else continue
+ *  T->I : PAN,PDOL,ATC,AC
+ *  
+ *  Issuer: if(PAN unrecognized | AC verification fails) decline
+ *  I->T : 'ACCEPTED',MAC'_{f(mk,ATC)}(AC)
+ *  
+ *  Terminal: Accept
+ *  
+ */
+
+theory EMV_simplified
+begin
+
+builtins: asymmetric-encryption,signing
+functions: kdf/2, MAC/2, MAC_Apostrophe/2
+macros: AIP()='fDDA'
+
+rule SecureChannelSend:
+  [ OutSecure($From, $To, message) ]
+  -->
+  [ !Sec($From, $To, message) ]
+
+rule SecureChannelReceive:
+  [ !Sec($From, $To, message) ]
+  -->
+  [ InSecure($From, $To, message) ]
+
+rule EstablishMasterKey:
+  [ Fr(~mk) ]
+  --[ EstablishedMasterKey($cardId) ]->
+  [ !MasterKey($cardId,$Issuer,~mk) ]
+
+rule RegisterCardAtPKI:
+  let
+    publickeyCard = pk(~privatekeyCard)
+  in
+  [ 
+    Fr(~privatekeyCard)
+  ]
+  --[ RegisteredCard($cardId) ]->
+  [ 
+    !Privatekey($cardId,~privatekeyCard) ,
+    !Publickey($cardId,publickeyCard),
+    Out(publickeyCard)
+  ]
+
+rule Card_GenerateInitialState:
+  let
+    secretKey = kdf(~mk,$ATC)
+  in
+  [  
+    !MasterKey($cardId,$Issuer,~mk),
+    !Privatekey($cardId,privatekeyCard),
+    Fr(~nonceCard)
+  ]
+  --[ Initiate($cardId,$Issuer) ]->
+  [ State_Card_Initial($cardId,$Issuer,privatekeyCard,secretKey,$ATC,~nonceCard) ]
+
+rule Terminal_GetProcessingOptions:
+  let
+    PDOL = <$amount,~unpredictableNumber>
+  in
+  [  
+    Fr(~unpredictableNumber)
+  ]
+  --[  ]->
+  [ 
+    Out(<'GET_PROCESSING_OPTIONS',PDOL>),
+    State_Terminal_Initial(PDOL,~unpredictableNumber)
+  ]
+
+rule Card_MacOverPdolATC:
+  let
+    PDOL = <$amount,~unpredictableNumber>
+    incomingMessage = <'GET_PROCESSING_OPTIONS',PDOL>
+
+    AC = MAC(secretKey,<PDOL,ATC>)
+
+    outgoingMessage = <AIP(),cardId,ATC,AC>
+  in
+  [
+    State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,ATC,~nonceCard),
+    In(incomingMessage)
+  ]
+  --[  ]->
+  [ 
+    Out(outgoingMessage),
+    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,PDOL,ATC,~nonceCard)
+  ]
+
+rule Terminal_SendReadRecord:
+  let
+    PDOL = <amount,~unpredictableNumber>
+    incomingMessage = <AIP(),cardId,ATC,AC>
+  in
+  [  
+    State_Terminal_Initial(PDOL,~unpredictableNumber),
+    In(incomingMessage)
+  ]
+  --[  ]->
+  [ 
+    Out('READ_RECORD'),
+    State_Terminal_Second(PDOL,AIP(),cardId,ATC,AC) 
+  ]
+
+rule Card_ReadRecord:
+  let
+    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+    SDAD = sign(transactionDataSm,privatekeyCard)
+
+    PAN = cardId
+    outgoingMessage = <PAN,SDAD,~nonceCard>
+  in
+  [  
+    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<amount,~unpredictableNumber>,ATC,~nonceCard)
+  ]
+  --[  ]->
+  [  
+    Out(outgoingMessage)
+  ]  
+
+rule Terminal_SdadVerification:
+  let
+    PDOL = <amount,~unpredictableNumber>
+
+    PAN = cardId
+    incomingMessage = <PAN,SDAD,~nonceCard>
+
+    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+
+    outgoingMessage = <PAN,PDOL,ATC,AC>
+  in
+  [  
+    State_Terminal_Second(PDOL,AIP(),cardId,ATC,AC),
+    In(incomingMessage),
+    !Publickey(cardId,publickeyCard)
+  ]
+  --[ Eq(verify(SDAD,transactionDataSm,publickeyCard),true) ]->
+  [ 
+    OutSecure($Terminal,$Issuer,outgoingMessage),
+    State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),ATC,AC)
+  ]
+
+rule Issuer_ValidatePanAndAc:
+  let
+    cardId = PAN
+    incomingMessage = <PAN,PDOL,ATC,AC>
+
+    contentToVerifyWithAC = <PDOL,ATC>
+
+    macKey = kdf(masterKey,ATC)
+    MAC_ApostropheOverAC = MAC_Apostrophe(macKey,AC)
+    outgoingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
+  in
+  [  
+    InSecure($Terminal,$Issuer,incomingMessage),
+    !Publickey(cardId,publickeyCard), //if this rule applies, PAN/cardId is registered @issuer
+    !MasterKey(cardId,$Issuer,masterKey)
+  ]
+  --[ Eq(verify(AC,contentToVerifyWithAC,publickeyCard),true) ]->
+  [  
+    OutSecure($Issuer,$Terminal,outgoingMessage)
+  ]
+
+  rule Terminal_FinalAccept:
+    let
+      incomingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
+    in
+    [  
+      State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),ATC,AC),
+      InSecure(Issuer,Terminal,incomingMessage)
+    ]
+    --[ Accept(cardId,Issuer) ]->
+    [ Out('ACCEPT') ]
+
+restriction unique_masterkey_pairing:
+  "
+    All cardId #i #j. 
+      EstablishedMasterKey(cardId)@i & 
+      EstablishedMasterKey(cardId)@j 
+        ==> 
+          #i=#j
+  "
+
+lemma executable:
+exists-trace
+"
+  All cardId Issuer #i . 
+    Initiate(cardId,Issuer)@i 
+      ==> 
+        Ex #j . 
+          Accept(cardId,Issuer)@j
+"
+
+
+end
