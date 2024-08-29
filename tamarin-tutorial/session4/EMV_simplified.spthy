@@ -113,7 +113,7 @@ rule Terminal_GetProcessingOptions:
   [  
     Fr(~unpredictableNumber)
   ]
-  --[  ]->
+  --[ TerminalStart($amount,~unpredictableNumber) ]->
   [ 
     Out(<'GET_PROCESSING_OPTIONS',PDOL>),
     State_Terminal_Initial(PDOL,~unpredictableNumber)
@@ -164,7 +164,7 @@ rule Card_ReadRecord:
   [  
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<amount,~unpredictableNumber>,ATC,~nonceCard)
   ]
-  --[ AuthenticateToTerminal(cardId,amount,~unpredictableNumber)]->
+  --[ AuthenticateToTerminal(cardId,outgoingMessage)]->
   [  
     Out(outgoingMessage)
   ]  
@@ -191,7 +191,7 @@ rule Terminal_offline_SdadVerification:
   --[ 
       Eq(verify(SDAD,transactionDataSm,publickeyCard),true),
       Accept(<'OFFLINE',CID>,cardId),
-      AcceptedOffline(cardId,amount,~unpredictableNumber)
+      AcceptedOffline(cardId,incomingMessage)
     ]->
   [ 
     Out('ACCEPT')
@@ -254,6 +254,9 @@ rule Issuer_ValidatePanAndAc:
     --[ Accept(<'ONLINE',CID>,cardId) ]->
     [ Out('ACCEPT') ]
 
+restriction equality:
+"All x y #i. Eq(x,y)@i ==> x=y" 
+
 restriction unique_masterkey_pairing:
   "
     All cardId #i #j. 
@@ -303,12 +306,13 @@ exists-trace
 lemma authentication_offline_by_terminal:
 //All transactions accepted offline by the terminal are authenticated to it by the card.
 "
-    All cardId amount unpredictableNumber #i . 
-      AcceptedOffline(cardId,amount,unpredictableNumber)@i
+    All cardId message #i . 
+      AcceptedOffline(cardId,message)@i 
         ==>
           (Ex #j . 
-          AuthenticateToTerminal(cardId,amount,unpredictableNumber)@j & 
-          #j<#i) |
-          (Ex #j . RevealCardPrivateKey(cardId)@j)
+          AuthenticateToTerminal(cardId,message)@j & 
+          #j<#i 
+          ) |
+          (Ex #k . RevealCardPrivateKey(cardId)@k)
 "
 end
