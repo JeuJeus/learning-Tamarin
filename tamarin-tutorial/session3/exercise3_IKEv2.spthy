@@ -30,6 +30,11 @@
  *  MAC_i : computed by mac(pk_i,k_j)
  *      initiator mac j=3
  *      responder mac j=4
+ *
+ * TODO missing from documentation:
+ *  - origin of k in kdf(k,...) g^x_A^x_B 
+ *  - origin of g -> preshared?
+ *  - origin of i in kdf(...,i) : supposed to be j?
  */
 
 theory exercise3_IKEv2
@@ -37,7 +42,6 @@ begin
 
 builtins: asymmetric-encryption, diffie-hellman, signing, symmetric-encryption, hashing
 functions: kdf/1,mac/2
-macros: kConstant() = 'k' //this is probably wrong, but manual does not further specify, spec is not easily resolved, will look into this later?
 
 rule RegisterKeyAtPKI:
     let
@@ -159,13 +163,15 @@ rule A_SwitchOverToAUTH:
 
         incomingMessage = <'INIT', $sA_B, ~gRaisedToPowerOfx_B, ~nonce_B, $info_B>
 
-        k_3 = kdf(kConstant(), ~nonce_A, ~nonce_B, '3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        keyK = gRaisedToPowerOfx_A^~gRaisedToPowerOfx_B
+
+        k_3 = kdf(keyK, ~nonce_A, ~nonce_B, '3')//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
         mAC_A = mac(publickey_A,k_3)
         transcript_A = h(<~cookie,$sA_A,gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         signedTranscript_A = sign(transcript_A,privatekey_A)
         outgoingMessage = <'AUTH',publickey_A,signedTranscript_A>
 
-        k_1 = kdf(<kConstant(),~nonce_A,~nonce_B,'1'>) 
+        k_1 = kdf(<keyK,~nonce_A,~nonce_B,'1'>) 
         encryptedOutgoingMessage = senc(outgoingMessage,k_1)
     in
     [  
@@ -178,26 +184,28 @@ rule A_SwitchOverToAUTH:
      ]->
     [  
         Out(encryptedOutgoingMessage),
-        State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B)
+        State_A_third(A,B,privatekey_A,publickey_B,transcript_A,gRaisedToPowerOfx_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B)
     ]
 
 rule B_SwichOverToAUTH:
     let
         gRaisedToPowerOfx_B = ~g^~x_B
 
-        k_3 = kdf(<kConstant(),~nonce_A,~nonce_B,'3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
+        keyK = ~gRaisedToPowerOfx_A^gRaisedToPowerOfx_B
+
+        k_3 = kdf(<keyK,~nonce_A,~nonce_B,'3'>)//signature is defined as kdf(k,n_A,n_B,i)=k_j but probably i=j
         mAC_A = mac(publickey_A,k_3)
         transcript_A = h(<~cookie,$sA_A,~gRaisedToPowerOfx_A,~nonce_A,$info_A,mAC_A>)
         incomingMessage = <'AUTH',publickey_A,~transcriptSignature_A>
-        k_1 = kdf(<kConstant(),~nonce_A,~nonce_B,'1'>)
+        k_1 = kdf(<keyK,~nonce_A,~nonce_B,'1'>)
         incomingMessageEncrypted = senc(incomingMessage,k_1)
 
-        k_4 = kdf(<kConstant(),~nonce_A,~nonce_B,'4'>)
+        k_4 = kdf(<keyK,~nonce_A,~nonce_B,'4'>)
         mAC_B = mac(publickey_B,k_4)
         transcript_B = h(<$sA_B,gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B>)
         signedTranscript_B = <transcript_B,privatekey_B>
         outgoingMessage = <'AUTH',publickey_B,signedTranscript_B>
-        k_2 = kdf(<kConstant(),~nonce_A,~nonce_B,'2'>)
+        k_2 = kdf(<keyK,~nonce_A,~nonce_B,'2'>)
         outgoingMessageEncryped = senc(outgoingMessage,k_2)
     in
     [  
@@ -213,15 +221,17 @@ rule B_SwichOverToAUTH:
 
 rule A_FinalReceive:
     let
-        k_4 = kdf(<kConstant(),~nonce_A,~nonce_B,'4'>)
+        keyK = ~gRaisedToPowerOfx_A^~gRaisedToPowerOfx_B
+
+        k_4 = kdf(<keyK,~nonce_A,~nonce_B,'4'>)
         mAC_B = mac(publickey_B,k_4)
         transcript_B = h($sA_B,~gRaisedToPowerOfx_B,~nonce_B,$info_B,mAC_B)
         incomingMessage = <'AUTH',publickey_B,~transcriptSignature_B>
-        k_2 = kdf(<kConstant(),~nonce_A,~nonce_B,'2'>)
+        k_2 = kdf(<keyK,~nonce_A,~nonce_B,'2'>)
         incomingMessageEncrypted = senc(incomingMessage,k_2)
     in
     [  
-        State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B),
+        State_A_third(A,B,privatekey_A,publickey_B,transcript_A,~gRaisedToPowerOfx_A,~gRaisedToPowerOfx_B,~nonce_A,~nonce_B,$sA_B,$info_B),
         In(incomingMessageEncrypted)
     ]
     --[  
