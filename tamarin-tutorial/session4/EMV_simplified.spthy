@@ -50,8 +50,7 @@ begin
 
 builtins: asymmetric-encryption,signing
 functions: kdf/2, MAC/2, MAC_Apostrophe/2
-macros: AIP()='fDDA', CID()='ARQC' //for now only allow online authentication
-//TODO implement offline authentication later
+macros: AIP()='fDDA'
 
 rule SecureChannelSend:
   [ OutSecure($From, $To, message) ]
@@ -114,13 +113,13 @@ rule Card_MacOverPdolATC:
 
     AC = MAC(secretKey,<PDOL,ATC>)
 
-    outgoingMessage = <AIP(),CID(),ATC,AC>
+    outgoingMessage = <AIP(),$CID,ATC,AC>
   in
   [
     State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,ATC,~nonceCard),
     In(incomingMessage)
   ]
-  --[  ]->
+  --[ AllowedCidValues($CID) ]->
   [ 
     Out(outgoingMessage),
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,PDOL,ATC,~nonceCard)
@@ -129,16 +128,16 @@ rule Card_MacOverPdolATC:
 rule Terminal_SendReadRecord:
   let
     PDOL = <amount,~unpredictableNumber>
-    incomingMessage = <AIP(),CID(),ATC,AC>
+    incomingMessage = <AIP(),$CID,ATC,AC>
   in
   [  
     State_Terminal_Initial(PDOL,~unpredictableNumber),
     In(incomingMessage)
   ]
-  --[  ]->
+  --[ AllowedCidValues($CID) ]->
   [ 
     Out('READ_RECORD'),
-    State_Terminal_Second(PDOL,AIP(),CID(),ATC,AC) 
+    State_Terminal_Second(PDOL,AIP(),$CID,ATC,AC) 
   ]
 
 rule Card_ReadRecord:
@@ -157,8 +156,11 @@ rule Card_ReadRecord:
     Out(outgoingMessage)
   ]  
 
-rule Terminal_SdadVerification:
+//### OFFLINE APPROVAL
+rule Terminal_offline_SdadVerification:
   let
+    CID='TC'
+
     PDOL = <amount,~unpredictableNumber>
 
     PAN = cardId
@@ -169,14 +171,41 @@ rule Terminal_SdadVerification:
     outgoingMessage = <PAN,PDOL,ATC,AC>
   in
   [  
-    State_Terminal_Second(PDOL,AIP(),CID(),ATC,AC),
+    State_Terminal_Second(PDOL,AIP(),CID,ATC,AC),
+    In(incomingMessage),
+    !Publickey(cardId,publickeyCard)
+  ]
+  --[ 
+      Eq(verify(SDAD,transactionDataSm,publickeyCard),true),
+      Accept(<'OFFLINE',CID>,cardId)
+    ]->
+  [ 
+    Out('ACCEPT')
+  ]
+
+//### ONLINE APPROVAL
+rule Terminal_online_SdadVerification:
+  let
+    CID='ARQC'
+
+    PDOL = <amount,~unpredictableNumber>
+
+    PAN = cardId
+    incomingMessage = <PAN,SDAD,~nonceCard>
+
+    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+
+    outgoingMessage = <PAN,PDOL,ATC,AC>
+  in
+  [  
+    State_Terminal_Second(PDOL,AIP(),CID,ATC,AC),
     In(incomingMessage),
     !Publickey(cardId,publickeyCard)
   ]
   --[ Eq(verify(SDAD,transactionDataSm,publickeyCard),true) ]->
   [ 
     OutSecure($Terminal,$Issuer,outgoingMessage),
-    State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),ATC,AC)
+    State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),ATC,AC,CID)
   ]
 
 rule Issuer_ValidatePanAndAc:
@@ -205,10 +234,10 @@ rule Issuer_ValidatePanAndAc:
       incomingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
     in
     [  
-      State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),ATC,AC),
+      State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),ATC,AC,CID),
       InSecure(Issuer,Terminal,incomingMessage)
     ]
-    --[ Accept(cardId,Issuer) ]->
+    --[ Accept(<'ONLINE',CID>,cardId) ]->
     [ Out('ACCEPT') ]
 
 restriction unique_masterkey_pairing:
@@ -220,14 +249,41 @@ restriction unique_masterkey_pairing:
           #i=#j
   "
 
+restriction allowed_cid_values:
+"
+  All cid #i . 
+    AllowedCidValues(cid)@i  
+      ==> 
+        cid='TC' | 
+        cid='ARQC'
+"
+
 lemma executable:
 exists-trace
 "
   All cardId Issuer #i . 
     Initiate(cardId,Issuer)@i 
       ==> 
-        Ex #j . 
-          Accept(cardId,Issuer)@j
+        (Ex #j . Accept(<'OFFLINE','TC'>,cardId)@j) |
+        (Ex #j . Accept(<'ONLINE','ARQC'>,cardId)@j) 
+"
+
+lemma executable_online:
+exists-trace
+"
+  All cardId Issuer #i . 
+    Initiate(cardId,Issuer)@i 
+      ==> 
+        (Ex #j . Accept(<'ONLINE','ARQC'>,cardId)@j) 
+"
+
+lemma executable_offline:
+exists-trace
+"
+  All cardId Issuer #i . 
+    Initiate(cardId,Issuer)@i 
+      ==> 
+        (Ex #j . Accept(<'OFFLINE','TC'>,cardId)@j) 
 "
 
 
