@@ -52,6 +52,7 @@ builtins: asymmetric-encryption,signing
 functions: kdf/2, MAC/2, MAC_Apostrophe/2
 macros: AIP()='fDDA'
 
+//### SECURE CHANNEL
 rule SecureChannelSend:
   [ OutSecure($From, $To, message) ]
   -->
@@ -62,6 +63,7 @@ rule SecureChannelReceive:
   -->
   [ InSecure($From, $To, message) ]
 
+//### KEY ESTABLISHMENT  
 rule EstablishMasterKey:
   [ Fr(~mk) ]
   --[ EstablishedMasterKey($cardId) ]->
@@ -81,6 +83,17 @@ rule RegisterCardAtPKI:
     Out(publickeyCard)
   ]
 
+rule RevealCardPrivateKey:
+  [ !Privatekey($cardId,privatekeyCard) ]
+  --[ RevealCardPrivateKey($cardId) ]->
+  [ Out(privatekeyCard) ]
+
+rule RevealMasterKey:
+  [ !MasterKey($cardId,$Issuer,mk) ]
+  --[ RevealMasterKey(mk) ]->
+  [ Out(mk) ]
+
+//### PROTOCOL RUN
 rule Card_GenerateInitialState:
   let
     secretKey = kdf(~mk,$ATC)
@@ -151,7 +164,7 @@ rule Card_ReadRecord:
   [  
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<amount,~unpredictableNumber>,ATC,~nonceCard)
   ]
-  --[  ]->
+  --[ AuthenticateToTerminal(cardId,amount,~unpredictableNumber)]->
   [  
     Out(outgoingMessage)
   ]  
@@ -177,7 +190,8 @@ rule Terminal_offline_SdadVerification:
   ]
   --[ 
       Eq(verify(SDAD,transactionDataSm,publickeyCard),true),
-      Accept(<'OFFLINE',CID>,cardId)
+      Accept(<'OFFLINE',CID>,cardId),
+      AcceptedOffline(cardId,amount,~unpredictableNumber)
     ]->
   [ 
     Out('ACCEPT')
@@ -286,5 +300,15 @@ exists-trace
         (Ex #j . Accept(<'OFFLINE','TC'>,cardId)@j) 
 "
 
-
+lemma authentication_offline_by_terminal:
+//All transactions accepted offline by the terminal are authenticated to it by the card.
+"
+    All cardId amount unpredictableNumber #i . 
+      AcceptedOffline(cardId,amount,unpredictableNumber)@i
+        ==>
+          (Ex #j . 
+          AuthenticateToTerminal(cardId,amount,unpredictableNumber)@j & 
+          #j<#i) |
+          (Ex #j . RevealCardPrivateKey(cardId)@j)
+"
 end
