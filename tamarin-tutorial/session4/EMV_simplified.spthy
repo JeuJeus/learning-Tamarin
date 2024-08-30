@@ -183,7 +183,7 @@ rule Terminal_offline_SdadVerification:
     PDOL = <$amount,~unpredictableNumber>
 
     PAN = cardId
-    incomingMessage = <PAN,SDAD,~nonceCard>
+    incomingMessage = <PAN,~SDAD,~nonceCard>
 
     transactionDataSm = <~unpredictableNumber,$amount,~nonceCard,$ATC,AIP()>
 
@@ -195,9 +195,9 @@ rule Terminal_offline_SdadVerification:
     !Publickey(cardId,publickeyCard)
   ]
   --[ 
-      Eq(verify(SDAD,transactionDataSm,publickeyCard),true),
+      Eq(verify(~SDAD,transactionDataSm,publickeyCard),true),
       Accept(<'OFFLINE',CID>,cardId),
-      AcceptedOffline(cardId,PAN,SDAD,~nonceCard)
+      AcceptedOffline(cardId,PAN,~SDAD,~nonceCard)
     ]->
   [ 
     Out('ACCEPT')
