@@ -130,24 +130,24 @@ rule Card_MacOverPdolATC:
     PDOL = <$amount,~unpredictableNumber>
     incomingMessage = <'GET_PROCESSING_OPTIONS',PDOL>
 
-    AC = MAC(secretKey,<PDOL,ATC>)
+    AC = MAC(secretKey,<PDOL,$ATC>)
 
-    outgoingMessage = <AIP(),$CID,ATC,AC>
+    outgoingMessage = <AIP(),$CID,$ATC,AC>
   in
   [
-    State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,ATC,~nonceCard),
+    State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,$ATC,~nonceCard),
     In(incomingMessage)
   ]
   --[ AllowedCidValues($CID) ]->
   [ 
     Out(outgoingMessage),
-    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,PDOL,ATC,~nonceCard)
+    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,PDOL,$ATC,~nonceCard)
   ]
 
 rule Terminal_SendReadRecord:
   let
-    PDOL = <amount,~unpredictableNumber>
-    incomingMessage = <AIP(),$CID,ATC,AC>
+    PDOL = <$amount,~unpredictableNumber>
+    incomingMessage = <AIP(),$CID,$ATC,~AC>
   in
   [  
     State_Terminal_Initial(PDOL,~unpredictableNumber),
@@ -156,19 +156,19 @@ rule Terminal_SendReadRecord:
   --[ AllowedCidValues($CID) ]->
   [ 
     Out('READ_RECORD'),
-    State_Terminal_Second(PDOL,AIP(),$CID,ATC,AC) 
+    State_Terminal_Second(PDOL,AIP(),$CID,$ATC,~AC) 
   ]
 
 rule Card_ReadRecord:
   let
-    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+    transactionDataSm = <~unpredictableNumber,$amount,~nonceCard,$ATC,AIP()>
     SDAD = sign(transactionDataSm,privatekeyCard)
 
     PAN = cardId
     outgoingMessage = <PAN,SDAD,~nonceCard>
   in
   [  
-    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<amount,~unpredictableNumber>,ATC,~nonceCard)
+    State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<$amount,~unpredictableNumber>,$ATC,~nonceCard)
   ]
   --[ AuthenticateToTerminal(cardId,PAN,SDAD,~nonceCard)]->
   [  
@@ -180,17 +180,17 @@ rule Terminal_offline_SdadVerification:
   let
     CID='TC'
 
-    PDOL = <amount,~unpredictableNumber>
+    PDOL = <$amount,~unpredictableNumber>
 
     PAN = cardId
     incomingMessage = <PAN,SDAD,~nonceCard>
 
-    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+    transactionDataSm = <~unpredictableNumber,$amount,~nonceCard,$ATC,AIP()>
 
-    outgoingMessage = <PAN,PDOL,ATC,AC>
+    outgoingMessage = <PAN,PDOL,$ATC,~AC>
   in
   [  
-    State_Terminal_Second(PDOL,AIP(),CID,ATC,AC),
+    State_Terminal_Second(PDOL,AIP(),CID,$ATC,~AC),
     In(incomingMessage),
     !Publickey(cardId,publickeyCard)
   ]
@@ -208,35 +208,35 @@ rule Terminal_online_SdadVerification:
   let
     CID='ARQC'
 
-    PDOL = <amount,~unpredictableNumber>
+    PDOL = <$amount,~unpredictableNumber>
 
     PAN = cardId
     incomingMessage = <PAN,SDAD,~nonceCard>
 
-    transactionDataSm = <~unpredictableNumber,amount,~nonceCard,ATC,AIP()>
+    transactionDataSm = <~unpredictableNumber,$amount,~nonceCard,$ATC,AIP()>
 
-    outgoingMessage = <PAN,PDOL,ATC,AC>
+    outgoingMessage = <PAN,PDOL,$ATC,~AC>
   in
   [  
-    State_Terminal_Second(PDOL,AIP(),CID,ATC,AC),
+    State_Terminal_Second(PDOL,AIP(),CID,$ATC,~AC),
     In(incomingMessage),
     !Publickey(cardId,publickeyCard)
   ]
   --[ Eq(verify(SDAD,transactionDataSm,publickeyCard),true) ]->
   [ 
     OutSecure($Terminal,$Issuer,outgoingMessage),
-    State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),ATC,AC,CID)
+    State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),$ATC,~AC,CID)
   ]
 
 rule Issuer_ValidatePanAndAc:
   let
     cardId = PAN
-    incomingMessage = <PAN,PDOL,ATC,AC>
+    incomingMessage = <PAN,PDOL,$ATC,~AC>
 
-    contentToVerifyWithAC = <PDOL,ATC>
+    contentToVerifyWithAC = <PDOL,$ATC>
 
-    macKey = kdf(masterKey,ATC)
-    MAC_ApostropheOverAC = MAC_Apostrophe(macKey,AC)
+    macKey = kdf(masterKey,$ATC)
+    MAC_ApostropheOverAC = MAC_Apostrophe(macKey,~AC)
     outgoingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
   in
   [  
@@ -244,7 +244,7 @@ rule Issuer_ValidatePanAndAc:
     !Publickey(cardId,publickeyCard), //if this rule applies, PAN/cardId is registered @issuer
     !MasterKey(cardId,$Issuer,masterKey)
   ]
-  --[ Eq(verify(AC,contentToVerifyWithAC,publickeyCard),true) ]->
+  --[ Eq(verify(~AC,contentToVerifyWithAC,publickeyCard),true) ]->
   [  
     OutSecure($Issuer,$Terminal,outgoingMessage)
   ]
@@ -254,7 +254,7 @@ rule Issuer_ValidatePanAndAc:
       incomingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
     in
     [  
-      State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),ATC,AC,CID),
+      State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),$ATC,~AC,CID),
       InSecure(Issuer,Terminal,incomingMessage)
     ]
     --[ Accept(<'ONLINE',CID>,cardId) ]->
