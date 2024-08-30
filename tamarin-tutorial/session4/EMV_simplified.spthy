@@ -138,7 +138,10 @@ rule Card_MacOverPdolATC:
     State_Card_Initial(cardId,Issuer,privatekeyCard,secretKey,$ATC,~nonceCard),
     In(incomingMessage)
   ]
-  --[ AllowedCidValues($CID) ]->
+  --[ 
+    AllowedCidValues($CID),
+    AuthenticateToIssuer(cardId,AC)
+  ]->
   [ 
     Out(outgoingMessage),
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,PDOL,$ATC,~nonceCard)
@@ -226,7 +229,8 @@ rule Terminal_online_SdadVerification:
   ]
   --[ 
     Eq(verify(~SDAD,transactionDataSm,publickeyCard),true),
-    AcceptedSdadOnline(cardId,PAN,~SDAD,~nonceCard)
+    AcceptedSdadOnline(cardId,PAN,~SDAD,~nonceCard),
+    AuthenticateToIssuer(cardId,~AC)
   ]->
   [ 
     OutSecure($Terminal,$Issuer,outgoingMessage),
@@ -251,7 +255,8 @@ rule Issuer_ValidatePanAndAc:
   ]
   --[ 
     Eq(verify(~AC,contentToVerifyWithAC,publickeyCard),true),
-    OnlineAuthenticateToTerminal(cardId,MAC_ApostropheOverAC)
+    IssuerAuthenticateOnline(cardId,MAC_ApostropheOverAC),
+    IssuerAccepted(cardId,~AC)
   ]->
   [  
     OutSecure($Issuer,$Terminal,outgoingMessage)
@@ -364,13 +369,27 @@ lemma authentication_online_by_card_and_issuer:
     AcceptedOnline(cardId,MAC_ApostropheOverAC)@i 
           ==> 
             (Ex PAN SDAD nonceCard #j #k #l . 
-              OnlineAuthenticateToTerminal(cardId,MAC_ApostropheOverAC)@j & 
+              IssuerAuthenticateOnline(cardId,MAC_ApostropheOverAC)@j & 
               #j<#i &
               AcceptedSdadOnline(cardId,PAN,SDAD,nonceCard)@k &
               #k<#j & 
               AuthenticateToTerminal(cardId,PAN,SDAD,nonceCard)@l & 
               #l<#k 
             ) 
+"
+
+lemma authentication_issuer_accepted_transactions:
+/*
+  All transactions accepted by the issuer 
+  are authenticated to it by both the card and the terminal.
+*/
+"
+  All cardId AC #i . 
+    IssuerAccepted(cardId,AC)@i 
+      ==> 
+        (Ex #j . 
+          AuthenticateToIssuer(cardId,AC)@j &
+          #j<#i)
 "
 
 end
