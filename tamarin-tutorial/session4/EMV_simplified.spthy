@@ -66,7 +66,10 @@ rule SecureChannelReceive:
 //### KEY ESTABLISHMENT  
 rule EstablishMasterKey:
   [ Fr(~mk) ]
-  --[ EstablishedMasterKey($cardId) ]->
+  --[ 
+    EstablishedMasterKey($cardId),
+    EstablishedMasterKeyForCard($cardId,~mk)
+  ]->
   [ !MasterKey($cardId,$Issuer,~mk) ]
 
 rule RegisterCardAtPKI:
@@ -76,7 +79,10 @@ rule RegisterCardAtPKI:
   [ 
     Fr(~privatekeyCard)
   ]
-  --[ RegisteredCard($cardId) ]->
+  --[ 
+    RegisteredCard($cardId),
+    RegisteredKeyForCard($cardId,~privatekeyCard) 
+  ]->
   [ 
     !Privatekey($cardId,~privatekeyCard) ,
     !Publickey($cardId,publickeyCard),
@@ -301,6 +307,22 @@ exists-trace
     Initiate(cardId,Issuer)@i 
       ==> 
         (Ex #j . Accept(<'OFFLINE','TC'>,cardId)@j) 
+"
+
+lemma secrecy_of_private_key [reuse]:
+"
+  All cardId privatekeyCard #i . RegisteredKeyForCard(cardId,privatekeyCard)@i 
+    ==> 
+      (not Ex #j . K(privatekeyCard)@j) | 
+      (Ex #j . RevealCardPrivateKey(cardId)@j)
+"
+
+lemma secrecy_of_master_key [reuse]:
+"
+  All cardId masterKey #i . EstablishedMasterKeyForCard(cardId,masterKey)@i 
+  ==> 
+    (not Ex #j . K(masterKey)@j) | 
+    (Ex #j . RevealMasterKey(masterKey)@j)
 "
 
 lemma authentication_offline_by_terminal:
