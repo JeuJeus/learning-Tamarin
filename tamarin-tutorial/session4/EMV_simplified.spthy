@@ -170,7 +170,9 @@ rule Card_ReadRecord:
   [  
     State_Card_Second(cardId,Issuer,privatekeyCard,secretKey,<$amount,~unpredictableNumber>,$ATC,~nonceCard)
   ]
-  --[ AuthenticateToTerminal(cardId,PAN,SDAD,~nonceCard)]->
+  --[ 
+    AuthenticateToTerminal(cardId,PAN,SDAD,~nonceCard)
+  ]->
   [  
     Out(outgoingMessage)
   ]  
@@ -197,7 +199,7 @@ rule Terminal_offline_SdadVerification:
   --[ 
       Eq(verify(~SDAD,transactionDataSm,publickeyCard),true),
       Accept(<'OFFLINE',CID>,cardId),
-      AcceptedOffline(cardId,PAN,~SDAD,~nonceCard)
+      AcceptedSdadOffline(cardId,PAN,~SDAD,~nonceCard)
     ]->
   [ 
     Out('ACCEPT')
@@ -211,7 +213,7 @@ rule Terminal_online_SdadVerification:
     PDOL = <$amount,~unpredictableNumber>
 
     PAN = cardId
-    incomingMessage = <PAN,SDAD,~nonceCard>
+    incomingMessage = <PAN,~SDAD,~nonceCard>
 
     transactionDataSm = <~unpredictableNumber,$amount,~nonceCard,$ATC,AIP()>
 
@@ -222,7 +224,10 @@ rule Terminal_online_SdadVerification:
     In(incomingMessage),
     !Publickey(cardId,publickeyCard)
   ]
-  --[ Eq(verify(SDAD,transactionDataSm,publickeyCard),true) ]->
+  --[ 
+    Eq(verify(~SDAD,transactionDataSm,publickeyCard),true),
+    AcceptedSdadOnline(cardId,PAN,~SDAD,~nonceCard)
+  ]->
   [ 
     OutSecure($Terminal,$Issuer,outgoingMessage),
     State_Terminal_Third($Terminal,$Issuer,cardId,PDOL,AIP(),$ATC,~AC,CID)
@@ -244,20 +249,26 @@ rule Issuer_ValidatePanAndAc:
     !Publickey(cardId,publickeyCard), //if this rule applies, PAN/cardId is registered @issuer
     !MasterKey(cardId,$Issuer,masterKey)
   ]
-  --[ Eq(verify(~AC,contentToVerifyWithAC,publickeyCard),true) ]->
+  --[ 
+    Eq(verify(~AC,contentToVerifyWithAC,publickeyCard),true),
+    OnlineAuthenticateToTerminal(cardId,MAC_ApostropheOverAC)
+  ]->
   [  
     OutSecure($Issuer,$Terminal,outgoingMessage)
   ]
 
   rule Terminal_FinalAccept:
     let
-      incomingMessage = <'ACCEPTED',MAC_ApostropheOverAC>
+      incomingMessage = <'ACCEPTED',~MAC_ApostropheOverAC>
     in
     [  
       State_Terminal_Third(Terminal,Issuer,cardId,PDOL,AIP(),$ATC,~AC,CID),
       InSecure(Issuer,Terminal,incomingMessage)
     ]
-    --[ Accept(<'ONLINE',CID>,cardId) ]->
+    --[ 
+      Accept(<'ONLINE',CID>,cardId),
+      AcceptedOnline(cardId,~MAC_ApostropheOverAC)
+    ]->
     [ Out('ACCEPT') ]
 
 restriction equality:
@@ -326,17 +337,40 @@ lemma secrecy_of_master_key [reuse]:
 "
 
 lemma authentication_offline_by_terminal:
-//All transactions accepted offline by the terminal are authenticated to it by the card.
+/*
+  All transactions accepted offline by the terminal 
+  are authenticated to it by the card.
+*/
 "
-    All cardId PAN SDAD nonceCard #i . 
-      AcceptedOffline(cardId,PAN,SDAD,nonceCard)@i 
-        ==>
-          (Ex #j . 
-            AuthenticateToTerminal(cardId,PAN,SDAD,nonceCard)@j & 
-            #j<#i 
-          ) | 
-          (Ex #j .
-            RevealCardPrivateKey(cardId)@j
-          ) 
+  All cardId PAN SDAD nonceCard #i . 
+    AcceptedSdadOffline(cardId,PAN,SDAD,nonceCard)@i 
+      ==>
+        (Ex #j . 
+          AuthenticateToTerminal(cardId,PAN,SDAD,nonceCard)@j & 
+          #j<#i 
+        ) | 
+        (Ex #j .
+          RevealCardPrivateKey(cardId)@j
+        ) 
 "
+
+lemma authentication_online_by_card_and_issuer:
+/*
+  All online-authorized transactions accepted by the terminal 
+  are authenticated to it by both the card and the issuer.
+*/
+"
+  All cardId MAC_ApostropheOverAC #i .
+    AcceptedOnline(cardId,MAC_ApostropheOverAC)@i 
+          ==> 
+            (Ex PAN SDAD nonceCard #j #k #l . 
+              OnlineAuthenticateToTerminal(cardId,MAC_ApostropheOverAC)@j & 
+              #j<#i &
+              AcceptedSdadOnline(cardId,PAN,SDAD,nonceCard)@k &
+              #k<#j & 
+              AuthenticateToTerminal(cardId,PAN,SDAD,nonceCard)@l & 
+              #l<#k 
+            ) 
+"
+
 end
