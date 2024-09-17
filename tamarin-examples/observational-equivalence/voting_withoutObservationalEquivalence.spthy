@@ -1,0 +1,59 @@
+
+/*
+ *  Author: Julius Figge
+ *  Model Name: voting_withoutObservationalEquivalence.spthy
+ *  Status: DEVELOPMENTAL
+ *
+ *  Comments: minimal example to explore observational equivalence
+ * WARNING this needs to be loaded with --diff flag otherwise it will not work
+ */
+
+theory voting_withoutObservationalEquivalence
+begin
+
+builtins: asymmetric-encryption 
+
+rule RegisterPublicKey:
+    let
+        publickey = ~privatekey
+    in
+    [ Fr(~privatekey) ]
+    --[ RegisteredKeypair($X,~privatekey,publickey) ]->
+    [  
+        !Privatekey($X,~privatekey),
+        !Publickey($X,publickey),
+        Out(publickey)
+    ]
+
+rule Voter_takeVoteAndSend:
+    let
+       encryptedVote = aenc(diff(~firstVoteOption,~secondVoteOption),publickey_votingMachine) 
+    in
+    [  
+        !Publickey($VotingMachine, publickey_votingMachine),
+        Fr(~firstVoteOption),
+        Fr(~secondVoteOption)
+    ]
+    --[ VoteWithoutNonce(~firstVoteOption) ]->
+    [ 
+        Out(~secondVoteOption),
+        Out(encryptedVote) ]
+
+
+rule VotingMachine_ReceiveVote:
+    let
+        publickey_votingMachine = pk(privatekey_votingMachine)
+        encryptedVote = aenc(diff(~firstVoteOption,~secondVoteOption),publickey_votingMachine) 
+    in
+    [ !Privatekey($VotingMachine,privatekey_votingMachine) ]
+    --[  ]->
+    [  ]
+
+lemma secrecy_vote:
+"
+    All voteOption #i . VoteWithoutNonce(voteOption)@i 
+        ==> 
+            not Ex #j . K(voteOption)@j 
+"
+
+end
